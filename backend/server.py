@@ -103,6 +103,23 @@ def compare_products(product_name_a, product_name_b):
         "product_b": {"name": product_b['product_name'], "scores": product_b['scores']}
     }
 
+def get_top_expensive_products(category, top_n=5):
+    category_df = products_df[products_df['category'].str.lower() == category.lower()].copy()
+    if category_df.empty:
+        return {"error": f"No products found for category '{category}'."}
+    
+    top_products = category_df.nlargest(top_n, 'product_price')
+    return top_products[['product_name', 'product_price']].to_dict(orient='records')
+
+
+def get_top_cheapest_products(category, top_n=5):
+    category_df = products_df[products_df['category'].str.lower() == category.lower()].copy()
+    if category_df.empty:
+        return {"error": f"No products found for category '{category}'."}
+    
+    cheapest_products = category_df.nsmallest(top_n, 'product_price')
+    return cheapest_products[['product_name', 'product_price']].to_dict(orient='records')
+
 # --- API Endpoints ---
 @app.route('/api/products', methods=['GET'])
 def get_products_endpoint():
@@ -180,8 +197,11 @@ def chat_endpoint():
     1. `get_product_details(product_name)`
     2. `get_recommendations(category, top_n=5)`
     3. `compare_products(product_name_a, product_name_b)`
-    4. `general_knowledge()`
+    4. `get_top_expensive_products(category, top_n=5)`
+    5. `get_top_cheapest_products(category, top_n=5)`
+    6. `general_knowledge()`
     """
+
     try:
         chat_session = gemini_model.start_chat(history=history[:-1])
         
@@ -203,10 +223,18 @@ def chat_endpoint():
         parameters = intent_data.get("parameters", {})
 
         tool_result = None
-        if tool_to_call == "get_product_details": tool_result = get_product_details(**parameters)
-        elif tool_to_call == "get_recommendations": tool_result = get_recommendations(**parameters)
-        elif tool_to_call == "compare_products": tool_result = compare_products(**parameters)
-        else: tool_result = {"query": user_query}
+        if tool_to_call == "get_product_details":
+            tool_result = get_product_details(**parameters)
+        elif tool_to_call == "get_recommendations":
+            tool_result = get_recommendations(**parameters)
+        elif tool_to_call == "compare_products":
+            tool_result = compare_products(**parameters)
+        elif tool_to_call == "get_top_expensive_products":
+            tool_result = get_top_expensive_products(**parameters)
+        elif tool_to_call == "get_top_cheapest_products":
+            tool_result = get_top_cheapest_products(**parameters)
+        else:
+            tool_result = {"query": user_query}
 
         response_prompt = f"""
         You are Conscia, a friendly AI assistant. Formulate a natural, conversational response based on the tool's result, keeping the entire chat history in mind.

@@ -11,7 +11,7 @@ export default function App() {
     const [products, setProducts] = useState([]);
     const [showTooltip, setShowTooltip] = useState(true);
     const [filteredProducts, setFilteredProducts] = useState([]);
-    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [selectedCategory, setSelectedCategory] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleCount, setVisibleCount] = useState(20);
     const [isLoading, setIsLoading] = useState(true);
@@ -260,14 +260,32 @@ export default function App() {
 
             <main>
                 <div className="filter-container glass-effect">
-                    <h2 className="filter-title">Explore Categories</h2>
-                    <div className="category-buttons">
-                        {categories.map(cat => <button key={cat} onClick={() => setSelectedCategory(cat)} className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}>{cat}</button>)}
-                    </div>
+                <h2 className="filter-title">Explore Categories</h2>
+                <div className="category-buttons">
+                    {categories.map((cat) => (
+                    <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`category-btn ${selectedCategory === cat ? "active" : ""}`}
+                    >
+                        {cat}
+                    </button>
+                    ))}
+                </div>
+
+                {/* Show search only if category is selected */}
+                {selectedCategory !== null && (
                     <div className="search-container">
-                        <SearchIcon className="search-icon" />
-                        <input type="text" placeholder="Search products..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input"/>
+                    <SearchIcon className="search-icon" />
+                    <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="search-input"
+                    />
                     </div>
+                )}
                 </div>
 
                 {isLoading ? <div className="center-flex"><LoadingSpinner /></div>
@@ -287,7 +305,7 @@ export default function App() {
                                   <h3 className="product-name">{product.product_name}</h3>
                                   <p className="product-category">{product.category}</p>
                                   <p className="product-price">
-                                    ${product.product_price ? parseFloat(product.product_price).toFixed(2) : '0.00'}
+                                    ₹{product.product_price ? parseFloat(product.product_price).toFixed(2) : '0.00'}
                                   </p>
                                 </div>
 
@@ -342,6 +360,7 @@ export default function App() {
                             ))}
                           </div>
                         ) : (
+                            selectedCategory !==null && 
                             <div className="empty-state"><h3 className="empty-title">No Products Found</h3><p>Try adjusting your search or category filters.</p></div>
                         )}
                         {visibleCount < filteredProducts.length && !isLoading && <div className="center-flex" style={{marginTop: '2rem'}}><LoadingSpinner /></div>}
@@ -384,8 +403,6 @@ export default function App() {
                   </button>
                 </div>
               </>
-            );
-            
             <div className="chat-fab">
                 <button onClick={() => setIsChatOpen(!isChatOpen)} className="chat-fab-button">
                     {isChatOpen ? <CloseIcon style={{height: '2rem', width: '2rem'}}/> : <ChatIcon style={{height: '2rem', width: '2rem'}}/>}
