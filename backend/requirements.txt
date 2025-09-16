@@ -1,8 +1,9 @@
-Flask
-flask-cors
 pandas
-numpy
+Flask
+Flask-Cors
 scikit-learn
 tensorflow
-google-generativeai
+numpy
 lime
+google-generativeai
+vaderSentiment
