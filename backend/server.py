@@ -10,31 +10,42 @@ import time
 import lime
 from lime.lime_text import LimeTextExplainer
 import json
+import re
 
+GEMINI_API_KEY = "AIzaSyB4piMziCBtdit9FiIRkFjaoo8UKbu28I8"
 
-GEMINI_API_KEY = ""
-
-# --- Flask App Initialization ---
 app = Flask(__name__)
 CORS(app) 
 
-# --- Global Variables for Models & Data ---
 products_df = None
 vectorizer = None
 model = None
 gemini_model = None
 explainer = None
+factual_df = None
 
-# --- Model & Data Loading ---
 def load_resources():
-    global products_df, vectorizer, model, gemini_model, explainer
+    global products_df, vectorizer, model, gemini_model, explainer, factual_df
     try:
-        data_path = os.path.join(os.path.dirname(__file__), 'data', 'products_with_scores.csv')
+        data_path = os.path.join(os.path.dirname(__file__), 'data', 'products_with_scores_enhanced.csv')
         products_df = pd.read_csv(data_path)
         products_df['product_price'] = pd.to_numeric(products_df['product_price'], errors='coerce')
-        print("Successfully loaded product data.")
+        products_df['product_id'] = products_df['product_id'].astype(str)
+        print("Successfully loaded product sentiment data.")
     except Exception as e:
         print(f"Error loading product CSV: {e}")
+        return False
+
+    try:
+        beauty_df = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'beauty_merged.csv'))
+        electronics_df = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'electronics_merged.csv'))
+        fashion_df = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'fashion_merged.csv'))
+        groceries_df = pd.read_csv(os.path.join(os.path.dirname(__file__), 'data', 'groceries_merged.csv'))
+        factual_df = pd.concat([beauty_df, electronics_df, fashion_df, groceries_df], ignore_index=True)
+        factual_df['product_id'] = factual_df['product_id'].astype(str)
+        print("Successfully loaded and merged factual score data.")
+    except Exception as e:
+        print(f"Error loading factual score CSVs: {e}")
         return False
 
     try:
@@ -60,7 +71,7 @@ def load_resources():
             gemini_model = None
         else:
             genai.configure(api_key=GEMINI_API_KEY)
-            gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            gemini_model = genai.GenerativeModel('gemini-pro')
             print("Successfully configured Gemini API.")
     except Exception as e:
         print(f"Error configuring Gemini API: {e}")
@@ -70,17 +81,17 @@ def load_resources():
     print("Successfully initialized LIME explainer.")
     return True
 
-# --- Expanded Toolkit for the Chatbot ---
-
 def get_product_details(product_name):
     product_series = products_df[products_df['product_name'].str.lower() == product_name.lower()]
     if product_series.empty: return {"error": "Product not found."}
     product_data = product_series.iloc[0].to_dict()
-    review_text = product_data.get('reviews', '')
-    vectorized_text = vectorizer.transform([review_text]).toarray()
-    prediction = model.predict(vectorized_text)
-    scores = np.clip(prediction[0], 0, 10)
-    product_data['scores'] = { "Environmental": f"{scores[0]:.1f}", "Labor Rights": f"{scores[1]:.1f}", "Animal Welfare": f"{scores[2]:.1f}", "Governance": f"{scores[3]:.1f}" }
+    scores = {
+        "Environmental": f"{product_data['environmental_impact_score']:.1f}",
+        "Labor Rights": f"{product_data['labor_rights_score']:.1f}",
+        "Animal Welfare": f"{product_data['animal_welfare_score']:.1f}",
+        "Governance": f"{product_data['corporate_governance_score']:.1f}"
+    }
+    product_data['scores'] = scores
     return product_data
 
 def get_recommendations(category, top_n=5):
@@ -120,69 +131,119 @@ def get_top_cheapest_products(category, top_n=5):
     cheapest_products = category_df.nsmallest(top_n, 'product_price')
     return cheapest_products[['product_name', 'product_price']].to_dict(orient='records')
 
-# --- API Endpoints ---
+
 @app.route('/api/products', methods=['GET'])
 def get_products_endpoint():
     if products_df is not None:
-        cols_to_send = [
-            'product_id', 'product_name', 'product_price', 'category', 'reviews',
-            'environmental_impact_score', 'labor_rights_score',
-            'animal_welfare_score', 'corporate_governance_score'
-        ]
-        # Ensure all required columns exist before trying to select them
-        existing_cols = [col for col in cols_to_send if col in products_df.columns]
-        products_with_scores_df = products_df[existing_cols]
-        return jsonify(products_with_scores_df.to_dict(orient='records'))
+        return jsonify(products_df.to_dict(orient='records'))
     else:
         return jsonify({"error": "Products not loaded"}), 500
 
-@app.route('/api/snapshot', methods=['POST'])
-def get_snapshot_endpoint():
-    if not gemini_model: return jsonify({"summary": "Ethical Snapshot feature is currently disabled."})
+@app.route('/api/factual-score/<product_id>', methods=['GET'])
+def get_factual_score_endpoint(product_id):
+    if factual_df is not None:
+        product_scores = factual_df[factual_df['product_id'] == str(product_id)]
+        if not product_scores.empty:
+            score_columns = ['Environmental Impact', 'Labor Rights', 'Animal Welfare', 'Corporate Governance']
+            scores = product_scores[score_columns].to_dict(orient='records')[0]
+            return jsonify(scores)
+        else:
+            default_scores = {'Environmental Impact': 50, 'Labor Rights': 50, 'Animal Welfare': 50, 'Corporate Governance': 50}
+            return jsonify(default_scores)
+    else:
+        return jsonify({"error": "Factual scores not loaded"}), 500
+
+@app.route('/api/submit-review', methods=['POST'])
+def submit_review_endpoint():
+    global products_df
     data = request.get_json()
-    time.sleep(1) 
-    product_name = data.get("product_name")
-    scores = data.get("scores")
+    product_id, review_text = data.get('product_id'), data.get('review_text')
+
+    if not product_id or not review_text:
+        return jsonify({"error": "Product ID and review text are required"}), 400
+
+    product_index_list = products_df.index[products_df['product_id'] == str(product_id)].tolist()
+    if not product_index_list:
+        return jsonify({"error": "Product not found"}), 404
     
-    # Convert scores to a 100-point scale for the prompt
-    scores_100 = {k: v * 10 for k, v in scores.items()}
-    
-    prompt = f"""You are an ethical shopping assistant. Write a short, 2-3 sentence summary for the product '{product_name}' based on these scores (out of 100):
-    - Environmental: {scores_100['environmental_impact_score']:.0f}
-    - Labor Rights: {scores_100['labor_rights_score']:.0f}
-    - Animal Welfare: {scores_100['animal_welfare_score']:.0f}
-    - Governance: {scores_100['corporate_governance_score']:.0f}
-    Praise very high scores (80+) and mention low scores (below 50) as potential concerns. Be concise and helpful."""
-    
-    response = gemini_model.generate_content(prompt)
-    return jsonify({"summary": response.text})
+    index = product_index_list[0]
+
+    # Append the new review text to the existing reviews for the session
+    # This allows the XAI feature to analyze it immediately on the frontend
+    if pd.isna(products_df.loc[index, 'reviews']):
+        products_df.loc[index, 'reviews'] = review_text
+    else:
+        products_df.loc[index, 'reviews'] += f"|||{review_text}"
+
+    # --- Real-time score update logic has been removed ---
+    # The new review is accepted, but the scores are not recalculated.
+    # This would typically be done in a separate, scheduled batch process.
+
+    return jsonify({
+        "message": "Review submitted successfully. Scores are updated periodically."
+    })
+
 
 @app.route('/api/explain', methods=['POST'])
 def explain_prediction_endpoint():
     data = request.get_json()
     review_text = data.get('reviews', '')
     
-    # LIME expects a function that takes a list of texts and returns prediction probabilities
     def lime_predict_function(texts):
         vectorized_texts = vectorizer.transform(texts).toarray()
         return model.predict(vectorized_texts)
 
-    explanation = explainer.explain_instance(review_text, lime_predict_function, num_features=5, labels=(0, 1, 2, 3))
+    individual_reviews = re.split(r'\|\|\||\. |\? |! ', review_text)
     
-    explanation_data = {
-        'environmental': [word for word, weight in explanation.as_list(label=0) if weight > 0],
-        'labor': [word for word, weight in explanation.as_list(label=1) if weight > 0],
-        'animal_welfare': [word for word, weight in explanation.as_list(label=2) if weight > 0],
-        'governance': [word for word, weight in explanation.as_list(label=3) if weight > 0],
-    }
-    return jsonify(explanation_data)
+    explanations = {}
+    for i, single_review in enumerate(filter(None, individual_reviews)):
+        explanation = explainer.explain_instance(single_review, lime_predict_function, num_features=5, labels=(0, 1, 2, 3))
+        
+        explanation_data = {
+            'positive': {
+                'environmental': [word for word, weight in explanation.as_list(label=0) if weight > 0],
+                'labor': [word for word, weight in explanation.as_list(label=1) if weight > 0],
+                'animal_welfare': [word for word, weight in explanation.as_list(label=2) if weight > 0],
+                'governance': [word for word, weight in explanation.as_list(label=3) if weight > 0],
+            },
+            'negative': {
+                'environmental': [word for word, weight in explanation.as_list(label=0) if weight < 0],
+                'labor': [word for word, weight in explanation.as_list(label=1) if weight < 0],
+                'animal_welfare': [word for word, weight in explanation.as_list(label=2) if weight < 0],
+                'governance': [word for word, weight in explanation.as_list(label=3) if weight < 0],
+            }
+        }
+        explanations[i] = {'review_text': single_review, 'explanation': explanation_data}
+        
+    return jsonify(explanations)
+
+@app.route('/api/snapshot', methods=['POST'])
+def get_snapshot_endpoint():
+    if not gemini_model: return jsonify({"summary": "Ethical Snapshot feature is currently disabled."})
+    data = request.get_json()
+    product_name = data.get("product_name")
+    scores = data.get("scores")
+    
+    scores_100 = {k: v * 10 for k, v in scores.items()}
+    
+    prompt = f"""You are an ethical shopping assistant. Write a short, 2-3 sentence summary for the product '{product_name}' based on the public sentiment scores (out of 100):
+    - Environmental: {scores_100['environmental_impact_score']:.0f}
+    - Labor Rights: {scores_100['labor_rights_score']:.0f}
+    - Animal Welfare: {scores_100['animal_welfare_score']:.0f}
+    - Governance: {scores_100['corporate_governance_score']:.0f}
+    Comment on what the public perception seems to be based on these scores. Praise very high scores (80+) and mention low scores (below 50) as potential public concerns. Be concise and helpful."""
+    
+    response = gemini_model.generate_content(prompt)
+    return jsonify({"summary": response.text})
 
 @app.route('/api/chat', methods=['POST'])
 def chat_endpoint():
-    if not gemini_model: return jsonify({"reply": "I'm sorry, my connection to the AI assistant is currently offline."})
+    if not gemini_model: 
+        return jsonify({"reply": "I'm sorry, my connection to the AI assistant is currently offline."})
     
     data = request.get_json()
-    if not data or 'history' not in data: return jsonify({"reply": "Invalid request format."})
+    if not data or 'history' not in data: 
+        return jsonify({"reply": "Invalid request format."})
     
     history = data.get('history')
     user_query = history[-1]['parts'][0]['text'] if history else ""
@@ -239,7 +300,8 @@ def chat_endpoint():
         response_prompt = f"""
         You are Conscia, a friendly AI assistant. Formulate a natural, conversational response based on the tool's result, keeping the entire chat history in mind.
         - NEVER just output raw JSON.
-        - For lists of products, format them clearly with bullet points.
+        - For lists of products, format them clearly with bullet points using markdown's "-".
+        - For comparisons, clearly state which product is better in which category.
         - Be helpful and clear.
 
         FULL CONVERSATION HISTORY: {json.dumps(history, indent=2)}
@@ -258,10 +320,10 @@ def chat_endpoint():
             print(f"Chatbot error: {e}")
             return jsonify({"reply": "I'm sorry, I had a little trouble processing that. Could you please rephrase your question?"})
 
+
 if __name__ == '__main__':
     if load_resources():
         print("All resources loaded. Starting Conscia Universal Server...")
         app.run(debug=True, port=5000)
     else:
         print("Failed to load resources. Server will not start.")
-

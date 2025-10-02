@@ -1,111 +1,149 @@
 import pandas as pd
-import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import re
+import numpy as np
+import nltk
 
-# --- One-time setup: Download the VADER lexicon for sentiment analysis ---
-# This is only needed the first time you run the script.
-try:
-    nltk.data.find('sentiment/vader_lexicon.zip')
-except LookupError: # <-- This line has been corrected
-    print("Downloading VADER lexicon for sentiment analysis (one-time setup)...")
-    nltk.download('vader_lexicon')
-# -------------------------------------------------------------------------
-
-def train_and_score_model():
-    """
-    This function simulates a model training process.
-    It reads the combined product data, analyzes reviews for sentiment and keywords,
-    generates ethical scores, and saves the result to a new file.
-    """
-    input_filepath = 'data/all_products.csv'
-    output_filepath = 'data/products_with_scores.csv'
-
+def setup_nltk():
+    """Downloads necessary NLTK data files."""
     try:
-        df = pd.read_csv(input_filepath)
+        nltk.data.find('sentiment/vader_lexicon.zip')
+    except LookupError:
+        print("Downloading VADER lexicon for sentiment analysis (one-time setup)...")
+        nltk.download('vader_lexicon')
+
+# A basic list of stop words for cleaning text
+STOP_WORDS = {
+    'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
+    'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'it', 'its', 'itself',
+    'they', 'them', 'their', 'theirs', 'themselves', 'what', 'which', 'who', 'whom',
+    'this', 'that', 'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been',
+    'being', 'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a', 'an',
+    'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of', 'at',
+    'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 'during',
+    'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in', 'out',
+    'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there',
+    'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most',
+    'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
+    'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now'
+}
+
+def clean_text_for_matching(text):
+    """
+    A simple text cleaner that lowercases, removes punctuation, and splits
+    text into word tokens for keyword matching.
+    """
+    text = text.lower()
+    text = re.sub(r'[^\w\s-]', '', text) # Remove punctuation but keep hyphens
+    tokens = [word for word in text.split() if word not in STOP_WORDS]
+    return tokens
+
+def train_and_score_model_enhanced():
+    """
+    Analyzes product reviews using a lightweight cleaning function and flexible
+    keyword matching to generate more accurate ethical scores.
+    """
+    all_products_filepath = 'data/all_products.csv'
+    output_filepath = 'data/products_with_scores_enhanced.csv'
+    
+    try:
+        # Create the 'all_products.csv' by merging the source files.
+        print("Loading and merging source CSV files...")
+        electronics_df = pd.read_csv('data/electronics_merged.csv')
+        beauty_df = pd.read_csv('data/beauty_merged.csv')
+        fashion_df = pd.read_csv('data/fashion_merged.csv')
+        groceries_df = pd.read_csv('data/groceries_merged.csv')
+
+        beauty_df['category'] = 'Beauty'
+        electronics_df['category'] = 'Electronics'
+        fashion_df['category'] = 'Fashion'
+        groceries_df['category'] = 'Groceries'
+
+        df = pd.concat([electronics_df, beauty_df, fashion_df, groceries_df], ignore_index=True)
+        df.to_csv(all_products_filepath, index=False)
+        print("'all_products.csv' created successfully.")
     except FileNotFoundError:
-        print(f"Error: '{input_filepath}' not found.")
-        print("Please run the 'prepare_data.py' script first.")
+        print("Error: One of the source CSV files was not found. Please ensure they are in the same directory.")
         return
 
-    # Initialize the sentiment analyzer
+    setup_nltk() # Ensure VADER is downloaded
     sia = SentimentIntensityAnalyzer()
-
-    # --- Define keywords for each ethical pillar ---
-    # This is the core of our "model's" logic.
+    
+    # Using root words for more flexible matching
     keywords = {
-        'environmental_impact': ['eco-friendly', 'sustainable', 'recycled', 'green', 'organic', 'biodegradable', 'low-impact'],
-        'labor_rights': ['fair-trade', 'ethical', 'handmade', 'local', 'artisan', 'union'],
-        'animal_welfare': ['cruelty-free', 'vegan', 'no-animal-testing', 'plant-based'],
-        'corporate_governance': ['durable', 'quality', 'long-lasting', 'reliable', 'transparent', 'b-corp']
+        'environmental_impact': ['eco', 'sustainab', 'recycle', 'green', 'organic', 'biodegradable', 'packag', 'waste', 'plastic', 'earth', 'planet', 'carbon'],
+        'labor_rights': ['fair-trade', 'ethic', 'handmade', 'local', 'artisan', 'union', 'wage', 'worker', 'sweatshop', 'child-labor', 'supply-chain'],
+        'animal_welfare': ['cruelty-free', 'vegan', 'animal-test', 'plant-based', 'humane', 'leaping-bunny', 'peta'],
+        'corporate_governance': ['durable', 'quality', 'long-last', 'reliable', 'transparent', 'b-corp', 'scandal', 'recall', 'lawsuit', 'customer-service', 'support', 'honest', 'deceptive', 'bad', 'poor', 'good', 'terrible', 'disappointed', 'excellent', 'fantastic', 'love', 'hate', 'best', 'worst']
     }
-
+    
     results = []
+    print("\nStarting enhanced scoring process...")
 
-    print("\nStarting scoring process...")
-    # --- Scoring Logic ---
     for index, row in df.iterrows():
-        review_text = str(row['reviews']).lower()
+        review_text = str(row['reviews'])
+        individual_reviews = re.split(r'\s*\|\s*', review_text)
         
-        # 1. Sentiment Score
-        # The 'compound' score is a single metric from -1 (most negative) to +1 (most positive)
-        sentiment_score = sia.polarity_scores(review_text)['compound']
+        pillar_sentiments = {pillar: [] for pillar in keywords}
+        general_sentiments = []
+
+        for review in individual_reviews:
+            if not review.strip():
+                continue
+            
+            sentence_sentiment = sia.polarity_scores(review)['compound']
+            
+            if -0.05 < sentence_sentiment < 0.05:
+                continue
+
+            clean_tokens = clean_text_for_matching(review)
+            
+            found_keyword_in_review = False
+            for token in clean_tokens:
+                for pillar, key_list in keywords.items():
+                    for key_root in key_list:
+                        if token.startswith(key_root):
+                            pillar_sentiments[pillar].append(sentence_sentiment)
+                            found_keyword_in_review = True
+            
+            if not found_keyword_in_review:
+                general_sentiments.append(sentence_sentiment)
         
-        # We'll normalize this to a 1-10 scale. Let's make 5 the neutral point.
-        # A score of 0 (neutral sentiment) will become a 5.
-        # A score of 1 (max positive) will become a 10.
-        # A score of -1 (max negative) will become a 0.
-        base_score = 5 * (sentiment_score + 1)
+        final_scores = {}
+        for pillar in keywords:
+            sentiments = pillar_sentiments[pillar]
+            if pillar == 'corporate_governance':
+                sentiments.extend(general_sentiments)
 
-        # 2. Keyword Score for each pillar
-        scores = {
-            'environmental_impact': base_score,
-            'labor_rights': base_score,
-            'animal_welfare': base_score,
-            'corporate_governance': base_score
-        }
+            if sentiments:
+                avg_sentiment = np.mean(sentiments)
+                score = (avg_sentiment + 1) * 5
+            else:
+                score = 5.0 # Neutral score if no relevant reviews found
 
-        # Add bonus points for each keyword found
-        for pillar, key_list in keywords.items():
-            for keyword in key_list:
-                if keyword in review_text:
-                    scores[pillar] += 1.5 # Add a bonus for finding a keyword
-        
-        # Cap scores at 10
-        for pillar in scores:
-            if scores[pillar] > 10:
-                scores[pillar] = 10.0
-            # Round to one decimal place
-            scores[pillar] = round(scores[pillar], 1)
+            final_scores[pillar] = max(0.0, min(10.0, round(score, 1)))
 
-        # Append all data to our results list
         processed_row = {
             'product_id': row['product_id'],
             'product_name': row['product_name'],
             'product_price': row['product_price'],
             'category': row['category'],
             'reviews': row['reviews'],
-            'environmental_impact_score': scores['environmental_impact'],
-            'labor_rights_score': scores['labor_rights'],
-            'animal_welfare_score': scores['animal_welfare'],
-            'corporate_governance_score': scores['corporate_governance']
+            'environmental_impact_score': final_scores['environmental_impact'],
+            'labor_rights_score': final_scores['labor_rights'],
+            'animal_welfare_score': final_scores['animal_welfare'],
+            'corporate_governance_score': final_scores['corporate_governance']
         }
         results.append(processed_row)
         
-        # Print progress
-        if (index + 1) % 500 == 0:
+        if (index + 1) % 1000 == 0:
             print(f" - Processed {index + 1}/{len(df)} products...")
 
-    # Create a new DataFrame with the results
     scored_df = pd.DataFrame(results)
-
-    # Save the final dataset
     scored_df.to_csv(output_filepath, index=False)
     
-    print("\nScoring process complete!")
-    print(f"Saved scored data to '{output_filepath}'. You can inspect this file to see the results.")
-    print(f"Total products scored: {len(scored_df)}")
-
+    print(f"\nEnhanced scoring process complete! Processed {len(df)} products.")
+    print(f"Saved new scores to '{output_filepath}'.")
 
 if __name__ == '__main__':
-    train_and_score_model()
-
+    train_and_score_model_enhanced()
