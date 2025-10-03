@@ -1,42 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import './App.css'; 
+import './App.css'
 
 // --- Helper & Icon Components ---
 const LoadingSpinner = () => ( <svg style={{height: '2rem', width: '2rem', color: 'white', animation: 'spin 1s linear infinite'}} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style={{opacity: 0.25}} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path style={{opacity: 0.75}} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
-const ChatIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4.913 2.658c1.32-.977 2.944-.977 4.264 0l8.165 6.02a4.5 4.5 0 0 1 2.223 3.865v2.92a4.5 4.5 0 0 1-1.226 3.125l-2.89 2.89a4.5 4.5 0 0 1-6.364 0l-.707-.707a4.5 4.5 0 0 1 0-6.364l2.89-2.89a4.5 4.5 0 0 1 3.125-1.226h2.92a4.5 4.5 0 0 1 3.865 2.223l.235.348a.75.75 0 0 1-1.28.854l-.235-.348a3 3 0 0 0-2.576-1.485h-2.92a3 3 0 0 0-2.083.818l-2.89 2.89a3 3 0 0 0 0 4.243l.707.707a3 3 0 0 0 4.243 0l2.89-2.89a3 3 0 0 0 .818-2.083v-2.92a3 3 0 0 0-1.485-2.576l-8.165-6.02a3 3 0 0 0-2.842 0l-8.165 6.02a3 3 0 0 0-1.485 2.576v2.92a3 3 0 0 0 .818 2.083l2.89 2.89a3 3 0 0 0 4.243 0l.707.707a3 3 0 0 0 0-4.243l-2.89-2.89a3 3 0 0 0-2.083-.818H3.34a3 3 0 0 0-2.576 1.485l-.235.348a.75.75 0 0 1-1.28-.854l-.235-.348A4.5 4.5 0 0 1 3.34 9.54V6.62a4.5 4.5 0 0 1 1.573-3.412L4.913 2.658Z" /></svg>);
-const CloseIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>);
-const SearchIcon = ({ className }) => ( <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clipRule="evenodd" /></svg>);
-const HamburgerIcon = ({ style }) => (<svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" /></svg>);
+const ChatIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 2.25zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.06 1.06a.75.75 0 01-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zM5.106 18.894a.75.75 0 010-1.06l1.06-1.06a.75.75 0 011.06 1.06l-1.06 1.06a.75.75 0 01-1.06 0zM18.894 18.894a.75.75 0 01-1.06 0l-1.06-1.06a.75.75 0 011.06-1.06l1.06 1.06a.75.75 0 010 1.06zM21.75 12a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75zM2.25 12a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H3a.75.75 0 01-.75-.75zM6.106 5.106a.75.75 0 011.06 0l1.06 1.06a.75.75 0 01-1.06 1.06L6.106 6.166a.75.75 0 010-1.06zM12 18a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 18z"></path></svg>);
+const CloseIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
+const SearchIcon = ({ className }) => ( <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5ZM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" /></svg>);
+const HamburgerIcon = ({ style }) => (<svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M3 6.75A.75.75 0 013.75 6h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 6.75ZM3 12a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 12Zm0 5.25a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" /></svg>);
 
-const Typewriter = ({ text, speed = 50, className = '' }) => {
-    const [displayedText, setDisplayedText] = useState('');
-    const [isComplete, setIsComplete] = useState(false);
-
-    useEffect(() => {
-        setDisplayedText('');
-        setIsComplete(false);
-        let i = 0;
-        const typingInterval = setInterval(() => {
-            if (i < text.length) {
-                setDisplayedText(prev => prev + text.charAt(i));
-                i++;
-            } else {
-                clearInterval(typingInterval);
-                setIsComplete(true);
-            }
-        }, speed);
-
-        return () => clearInterval(typingInterval);
-    }, [text, speed]);
-
-    return (
-        <span className={`typewriter-text ${className}`}>
-            {displayedText}
-            {!isComplete && <span className="cursor" />}
-        </span>
-    );
-};
-
+// This file uses inline styles and CSS classes defined in the <style> tag in index.html
+// No external './App.css' is needed.
 
 export default function App() {
     const [products, setProducts] = useState([]);
@@ -151,10 +124,10 @@ export default function App() {
     const handleGetSummary = async () => {
         if (!selectedProduct) return;
         const scores = {
-            environmental_impact_score: selectedProduct.environmental_impact_score,
-            labor_rights_score: selectedProduct.labor_rights_score,
-            animal_welfare_score: selectedProduct.animal_welfare_score,
-            corporate_governance_score: selectedProduct.corporate_governance_score
+            'environmental impact': selectedProduct['environmental impact'],
+            'labor rights': selectedProduct['labor rights'],
+            'animal welfare': selectedProduct['animal welfare'],
+            'corporate governance': selectedProduct['corporate governance']
         };
         setIsSummaryLoading(true); setSummary('');
         try {
@@ -174,10 +147,10 @@ export default function App() {
 
         setIsReviewSubmitting(true);
         try {
-            const reviewResponse = await fetch(`${API_URL}/add_review`, {
+            const reviewResponse = await fetch(`${API_URL}/products/${selectedProduct.product_id}/reviews`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ product_id: selectedProduct.product_id, review: newReview })
+                body: JSON.stringify({ review: newReview })
             });
 
             if (!reviewResponse.ok) throw new Error('Failed to submit review.');
@@ -265,66 +238,75 @@ export default function App() {
     );
 
     const HighlightedReview = ({ text, explanation }) => {
-        if (!text) return <div style={{color: 'var(--color-text-secondary)'}}>No review text available.</div>;
-        if (!explanation) return <div style={{color: 'var(--color-text-secondary)'}}>{text}</div>;
-    
-        const words = text.split(/(\s+)/);
+        if (!text) return <div style={{ color: 'var(--color-text-secondary)' }}>No review text available.</div>;
+
         const colorMap = {
-            environmental: 'rgba(52, 211, 153, 0.3)',
-            labor: 'rgba(96, 165, 250, 0.3)',
-            animal_welfare: 'rgba(250, 204, 21, 0.3)',
-            governance: 'rgba(192, 132, 252, 0.3)'
+            'environmental impact': 'rgba(52, 211, 153, 0.3)',
+            'labor rights': 'rgba(96, 165, 250, 0.3)',
+            'animal welfare': 'rgba(250, 204, 21, 0.3)',
+            'corporate governance': 'rgba(192, 132, 252, 0.3)'
         };
         const wordMap = new Map();
-    
-        Object.entries(explanation).forEach(([category, catWords]) => {
-            if (Array.isArray(catWords)) {
-                catWords.forEach(word => wordMap.set(word.toLowerCase(), colorMap[category]));
-            }
-        });
-    
+
+        if (explanation) {
+            Object.entries(explanation).forEach(([category, catWords]) => {
+                if (Array.isArray(catWords)) {
+                    catWords.forEach(word => wordMap.set(word.toLowerCase(), colorMap[category]));
+                }
+            });
+        }
+
+        // Split the full review text into individual review strings
+        const individualReviews = text.split(' | ').filter(review => review.trim() !== '');
+
+        const renderSingleReview = (reviewText) => {
+            const words = reviewText.split(/(\s+)/);
+            return words.map((word, wordIndex) => {
+                const cleanWord = word.replace(/[.,!?]/g, '').toLowerCase();
+                const bgColor = wordMap.get(cleanWord);
+                return bgColor ?
+                    <span key={wordIndex} style={{ padding: '0 0.25rem', borderRadius: '0.375rem', backgroundColor: bgColor }}>{word}</span> :
+                    <span key={wordIndex}>{word}</span>;
+            });
+        };
+
         return (
-            <p style={{color: '#d1d5db', lineHeight: 1.6, margin: 0}}>
-                {words.map((word, i) => {
-                    const cleanWord = word.replace(/[.,!?]/g, '').toLowerCase();
-                    const bgColor = wordMap.get(cleanWord);
-                    return bgColor ? 
-                        <span key={i} style={{padding: '0 0.25rem', borderRadius: '0.375rem', backgroundColor: bgColor}}>{word}</span> : 
-                        <span key={i}>{word}</span>;
-                })}
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {individualReviews.map((review, index) => (
+                    <p key={index} style={{ color: '#d1d5db', lineHeight: 1.6, margin: 0 }}>
+                        {renderSingleReview(review)}
+                    </p>
+                ))}
+            </div>
         );
     };
 
+
     const AboutPage = React.memo(() => (
         <div className="about-page glass-effect">
-            <h2><Typewriter text="Abbout Conscia" speed={100} className="about-title-font" /></h2>
-            <h3><Typewriter text="Ouur Mission" speed={80} className="about-heading-font" /></h3>
+            <h2>About Conscia</h2>
+            <h3>Our Mission</h3>
             <p>
-                <Typewriter 
-                    text="Ouur mission is to empower consumers with the information they need to shop according to their values. We analyze product reviews and data across four key pillars: Environmental Impact, Labor Rights, Animal Welfare, and Corporate Governance." 
-                    speed={20}
-                />
+                Our mission is to empower consumers with the information they need to shop according to their values. We analyze product reviews and data across four key pillars: Environmental Impact, Labor Rights, Animal Welfare, and Corporate Governance.
             </p>
-            <h3><Typewriter text="Hoow It Works" speed={80} className="about-heading-font" /></h3>
+            <h3>How It Works</h3>
             <p>
-                <Typewriter 
-                    text="Coonscia uses a custom-trained neural network to analyze thousands of user reviews, identifying keywords and sentiment related to our ethical pillars. This analysis generates a score for each category, allowing you to see at a glance how a product aligns with ethical standards." 
-                    speed={20}
-                />
+                Conscia uses a custom-trained neural network to analyze thousands of user reviews, identifying keywords and sentiment related to our ethical pillars. This analysis generates a score for each category, allowing you to see at a glance how a product aligns with ethical standards.
             </p>
         </div>
     ));
 
     const renderModalContent = () => {
         if (!selectedProduct) return null;
+        
+        const ethicalPillars = [
+            { label: 'Environmental', key: 'environmental impact', colorClass: 'bar-env' },
+            { label: 'Labor Rights', key: 'labor rights', colorClass: 'bar-labor' },
+            { label: 'Animal Welfare', key: 'animal welfare', colorClass: 'bar-animal' },
+            { label: 'Governance', key: 'corporate governance', colorClass: 'bar-gov' },
+        ];
 
-        const scores = {
-            environmental_impact_score: selectedProduct.environmental_impact_score,
-            labor_rights_score: selectedProduct.labor_rights_score,
-            animal_welfare_score: selectedProduct.animal_welfare_score,
-            corporate_governance_score: selectedProduct.corporate_governance_score
-        };
+        const sentimentScore = { label: 'Public Sentiment', key: 'public_sentiment_score', colorClass: 'bar-senti' };
 
         return (
             <>
@@ -339,25 +321,38 @@ export default function App() {
                 </div>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '2rem'}} id="modal-grid">
                     <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                        <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin: 0}}>Ethical Scores</h3>
-                        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-                            {[
-                                { label: 'Environmental', key: 'environmental_impact_score', colorClass: 'bar-env' },
-                                { label: 'Labor Rights', key: 'labor_rights_score', colorClass: 'bar-labor' },
-                                { label: 'Animal Welfare', key: 'animal_welfare_score', colorClass: 'bar-animal' },
-                                { label: 'Governance', key: 'corporate_governance_score', colorClass: 'bar-gov' },
-                            ].map(item => (
-                                <div key={item.key}>
-                                    <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
-                                        <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{item.label}</span>
-                                        <span style={{fontWeight: 700, color: 'white'}}>{(scores[item.key] * 10).toFixed(0)} / 100</span>
+                        {/* Ethical Pillars Section */}
+                        <div>
+                            <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin: '0 0 1rem 0'}}>Ethical Scores</h3>
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+                                {ethicalPillars.map(item => (
+                                    <div key={item.key}>
+                                        <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
+                                            <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{item.label}</span>
+                                            <span style={{fontWeight: 700, color: 'white'}}>{(selectedProduct[item.key] || 0).toFixed(0)} / 100</span>
+                                        </div>
+                                        <div className="card-score-bar-bg">
+                                            <div className={`card-score-bar-fill ${item.colorClass}`} style={{ width: `${selectedProduct[item.key] || 0}%` }}></div>
+                                        </div>
                                     </div>
-                                    <div className="card-score-bar-bg">
-                                        <div className={`card-score-bar-fill ${item.colorClass}`} style={{ width: `${scores[item.key] * 10}%` }}></div>
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
+
+                        {/* Public Sentiment Section */}
+                        <div style={{marginTop: '1.5rem'}}>
+                             <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin: '0 0 1rem 0'}}>Public Sentiment</h3>
+                             <div>
+                                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
+                                    <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{sentimentScore.label}</span>
+                                    <span style={{fontWeight: 700, color: 'white'}}>{(selectedProduct[sentimentScore.key] || 0).toFixed(0)} / 100</span>
+                                </div>
+                                <div className="card-score-bar-bg">
+                                    <div className={`card-score-bar-fill ${sentimentScore.colorClass}`} style={{ width: `${selectedProduct[sentimentScore.key] || 0}%` }}></div>
+                                </div>
+                            </div>
+                        </div>
+
                          <div style={{paddingTop: '1rem'}}>
                             <button onClick={handleGetSummary} disabled={isSummaryLoading} className="review-submit-btn">
                                 {isSummaryLoading ? 'Generating...' : 'Get AI Ethical Snapshot'}
@@ -367,7 +362,7 @@ export default function App() {
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                          <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin:0}}>Review Analysis (XAI)</h3>
-                         <div style={{padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '8px', maxHeight: '20rem', overflowY: 'auto'}}>
+                         <div style={{padding: '1rem', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '8px', maxHeight: '20rem', overflowY: 'auto'}}>
                             {isModalLoading ? <div style={{display: 'flex', justifyContent: 'center'}}><LoadingSpinner /></div> : <HighlightedReview text={selectedProduct.reviews} explanation={explanation} />}
                         </div>
                         <p style={{fontSize: '0.75rem', color: 'var(--color-text-secondary)', textAlign: 'center', margin: 0}}>Words are highlighted based on their influence on the AI's scores.</p>
@@ -381,7 +376,7 @@ export default function App() {
                                 placeholder="Share your thoughts on this product..."
                             />
                             <button type="submit" disabled={isReviewSubmitting} className="review-submit-btn">
-                                {isReviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                                {isReviewSubmitting ? 'Submitting...' : 'Submit Review & Update Scores'}
                             </button>
                         </form>
                     </div>
@@ -478,58 +473,58 @@ export default function App() {
 
                         {activeView === 'products' && (
                             isLoading ? <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4rem' }}><LoadingSpinner /></div>
-                            : error ? <div className="error-box"><h3 className="error-title">Connection Error</h3><p>{error}</p></div>
+                            : error ? <div className="error-box glass-effect"><h3 className="error-title">Connection Error</h3><p>{error}</p></div>
                             : (
                                 <>
                                     {filteredProducts.length > 0 ? (
-                                      <div className="product-grid">
-                                        {filteredProducts.slice(0, visibleCount).map((product, index) => (
-                                          <div
-                                            key={product.product_id}
-                                            ref={index === visibleCount - 1 ? lastProductElementRef : null}
-                                            onClick={() => handleProductClick(product)}
-                                            className="product-card glass-effect"
-                                          >
-                                            <div>
-                                              <h3 className="product-name">{product.product_name}</h3>
-                                              <p className="product-category">{product.category}</p>
-                                              <p className="product-price">
-                                                ₹{product.product_price ? parseFloat(product.product_price).toFixed(2) : '0.00'}
-                                              </p>
-                                            </div>
-                                            <div className="card-scores-container">
-                                                <div className="card-score-bar-wrapper">
-                                                    <span className="card-score-label">Environment</span>
-                                                    <div className="card-score-bar-bg">
-                                                        <div className="card-score-bar-fill bar-env" style={{ width: `${(product.environmental_impact_score*10)}%` }}/>
+                                        <div className="product-grid">
+                                            {filteredProducts.slice(0, visibleCount).map((product, index) => (
+                                                <div
+                                                    key={product.product_id}
+                                                    ref={index === visibleCount - 1 ? lastProductElementRef : null}
+                                                    onClick={() => handleProductClick(product)}
+                                                    className="product-card glass-effect"
+                                                >
+                                                    <div>
+                                                        <h3 className="product-name">{product.product_name}</h3>
+                                                        <p className="product-category">{product.category}</p>
+                                                        <p className="product-price">
+                                                            ₹{product.product_price ? parseFloat(product.product_price).toFixed(2) : '0.00'}
+                                                        </p>
                                                     </div>
-                                                    <span className="card-score-value">{Math.round(product.environmental_impact_score*10)}</span>
-                                                </div>
-                                                <div className="card-score-bar-wrapper">
-                                                    <span className="card-score-label">Labor</span>
-                                                    <div className="card-score-bar-bg">
-                                                        <div className="card-score-bar-fill bar-labor" style={{ width: `${(product.labor_rights_score*10)}%` }}/>
+                                                    <div className="card-scores-container">
+                                                        <div className="card-score-bar-wrapper">
+                                                            <span className="card-score-label">Environment</span>
+                                                            <div className="card-score-bar-bg">
+                                                                <div className="card-score-bar-fill bar-env" style={{ width: `${product['environmental impact'] || 0}%` }}/>
+                                                            </div>
+                                                            <span className="card-score-value">{Math.round(product['environmental impact'] || 0)}</span>
+                                                        </div>
+                                                        <div className="card-score-bar-wrapper">
+                                                            <span className="card-score-label">Labor</span>
+                                                            <div className="card-score-bar-bg">
+                                                                <div className="card-score-bar-fill bar-labor" style={{ width: `${product['labor rights'] || 0}%` }}/>
+                                                            </div>
+                                                            <span className="card-score-value">{Math.round(product['labor rights'] || 0)}</span>
+                                                        </div>
+                                                        <div className="card-score-bar-wrapper">
+                                                            <span className="card-score-label">Animal Welfare</span>
+                                                            <div className="card-score-bar-bg">
+                                                                <div className="card-score-bar-fill bar-animal" style={{ width: `${product['animal welfare'] || 0}%` }}/>
+                                                            </div>
+                                                            <span className="card-score-value">{Math.round(product['animal welfare'] || 0)}</span>
+                                                        </div>
+                                                        <div className="card-score-bar-wrapper">
+                                                            <span className="card-score-label">Governance</span>
+                                                            <div className="card-score-bar-bg">
+                                                                <div className="card-score-bar-fill bar-gov" style={{ width: `${product['corporate governance'] || 0}%` }}/>
+                                                            </div>
+                                                            <span className="card-score-value">{Math.round(product['corporate governance'] || 0)}</span>
+                                                        </div>
                                                     </div>
-                                                    <span className="card-score-value">{Math.round(product.labor_rights_score*10)}</span>
                                                 </div>
-                                                <div className="card-score-bar-wrapper">
-                                                    <span className="card-score-label">Animal Welfare</span>
-                                                    <div className="card-score-bar-bg">
-                                                        <div className="card-score-bar-fill bar-animal" style={{ width: `${(product.animal_welfare_score*10)}%` }}/>
-                                                    </div>
-                                                    <span className="card-score-value">{Math.round(product.animal_welfare_score*10)}</span>
-                                                </div>
-                                                <div className="card-score-bar-wrapper">
-                                                    <span className="card-score-label">Governance</span>
-                                                    <div className="card-score-bar-bg">
-                                                        <div className="card-score-bar-fill bar-gov" style={{ width: `${(product.corporate_governance_score*10)}%` }}/>
-                                                    </div>
-                                                    <span className="card-score-value">{Math.round(product.corporate_governance_score*10)}</span>
-                                                </div>
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
+                                            ))}
+                                        </div>
                                     ) : (
                                         <div className="empty-state glass-effect"><h3 className="empty-title">No Products Found</h3><p>Try adjusting your search or category filters.</p></div>
                                     )}
@@ -566,3 +561,4 @@ export default function App() {
         </div>
     );
 }
+
