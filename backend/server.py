@@ -19,6 +19,7 @@ from lime.lime_text import LimeTextExplainer
 # --- Configuration ---
 # For security, it's best practice to load API keys from environment variables.
 # You can set this variable in your terminal before running the server.
+# IMPORTANT: Replace "YOUR_API_KEY_HERE" with your actual Gemini API Key.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyAIcd1VE4y-MVLPCTQyMz02Mgpty4ukwBo")
 
 # --- Flask App Initialization ---
@@ -68,7 +69,7 @@ def load_resources():
         
     # 3. Configure Gemini API
     try:
-        if not GEMINI_API_KEY:
+        if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_API_KEY_HERE":
             print("⚠️ WARNING: Gemini API Key not found. Chatbot and Summaries will be disabled.")
             gemini_model = None
         else:
@@ -131,6 +132,38 @@ def compare_products(product_name_a, product_name_b):
         product_b['product_name']: {k: v for k, v in product_b.items() if k in score_cols}
     }
 
+def get_products_by_price(category, order, top_n=5):
+    """Gets the top N most or least expensive products in a category."""
+    category_df = products_df[products_df['category'].str.lower() == category.lower()]
+    if category_df.empty:
+        return {"error": f"Sorry, I don't have a '{category}' category."}
+    
+    category_df['product_price'] = pd.to_numeric(category_df['product_price'], errors='coerce')
+    category_df.dropna(subset=['product_price'], inplace=True)
+
+    is_ascending = (order.lower() == 'cheap')
+    sorted_products = category_df.sort_values(by='product_price', ascending=is_ascending)
+    
+    top_products = sorted_products.head(top_n)
+    return top_products[['product_name', 'product_price']].to_dict(orient='records')
+
+def get_products_by_ethical_score(order, top_n=5, category=None):
+    """Gets the top N best or worst rated products, optionally in a category."""
+    df_to_search = products_df.copy()
+    if category:
+        df_to_search = df_to_search[df_to_search['category'].str.lower() == category.lower()]
+        if df_to_search.empty:
+            return {"error": f"Sorry, I don't have a '{category}' category."}
+            
+    score_cols = ['environmental impact', 'labor rights', 'animal welfare', 'corporate governance']
+    df_to_search['avg_ethical_score'] = df_to_search[score_cols].mean(axis=1)
+    
+    is_ascending = (order.lower() == 'worst')
+    sorted_products = df_to_search.sort_values(by='avg_ethical_score', ascending=is_ascending)
+
+    top_products = sorted_products.head(top_n)
+    return top_products[['product_name', 'avg_ethical_score']].to_dict(orient='records')
+
 # --- API Endpoints ---
 
 @app.route('/api/products', methods=['GET'])
@@ -154,7 +187,6 @@ def add_review_endpoint(product_id):
         return jsonify({'error': 'Product not found'}), 404
     idx = product_index[0]
 
-    # --- Update Reviews and All Scores ---
     current_reviews = products_df.at[idx, 'reviews']
     updated_reviews = f"{current_reviews} | {new_review}" if pd.notna(current_reviews) else new_review
     products_df.at[idx, 'reviews'] = updated_reviews
@@ -238,13 +270,37 @@ def chat_endpoint():
 
     Your available tools are:
     1. `get_product_details(product_name: str)`
+       - Use for specific questions about one product.
+
     2. `get_recommendations(category: str, top_n: int = 5)`
+       - Use when the user asks for general recommendations in a category without specifying 'best' or 'worst'.
+
     3. `compare_products(product_name_a: str, product_name_b: str)`
-    4. `general_knowledge()`
+       - Use when the user wants to compare two specific products.
+
+    4. `get_products_by_price(category: str, order: str, top_n: int = 5)`
+       - Use when the user asks about price.
+       - The `order` parameter MUST be either 'expensive' or 'cheap'.
+       - Example: "show me the 5 cheapest fashion items" -> `{"tool": "get_products_by_price", "parameters": {"category": "fashion", "order": "cheap", "top_n": 5}}`
+
+    5. `get_products_by_ethical_score(order: str, top_n: int = 5, category: str = None)`
+       - Use when the user asks for the "best", "most ethical", "worst", or "lowest rated" products.
+       - The `order` parameter MUST be either 'best' or 'worst'.
+       - The `category` parameter is optional.
+       - Example: "what are the top 3 best products overall?" -> `{"tool": "get_products_by_ethical_score", "parameters": {"order": "best", "top_n": 3}}`
+       - Example: "list the 2 worst electronics" -> `{"tool": "get_products_by_ethical_score", "parameters": {"order": "worst", "top_n": 2, "category": "electronics"}}`
+
+    6. `general_knowledge()`
+       - Use for anything else, like greetings or questions not related to product data.
     """
 
     try:
-        chat_session = gemini_model.start_chat(history=history[:-1])
+        model_history = []
+        for message in history[:-1]:
+            role = 'user' if message['role'] == 'user' else 'model'
+            model_history.append({'role': role, 'parts': message['parts']})
+
+        chat_session = gemini_model.start_chat(history=model_history)
         intent_response = chat_session.send_message(f"User Query: \"{user_query}\"\n\n{system_prompt}")
         
         raw_text = intent_response.text.strip().replace("```json", "").replace("```", "").strip()
@@ -262,6 +318,8 @@ def chat_endpoint():
             "get_product_details": get_product_details,
             "get_recommendations": get_recommendations,
             "compare_products": compare_products,
+            "get_products_by_price": get_products_by_price,
+            "get_products_by_ethical_score": get_products_by_ethical_score,
         }
 
         if tool_to_call in tool_map:
@@ -293,4 +351,3 @@ if __name__ == '__main__':
         app.run(debug=True, port=5000)
     else:
         print("\n❌ Failed to load critical resources. Server will not start.")
-
