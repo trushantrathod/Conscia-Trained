@@ -20,7 +20,7 @@ from lime.lime_text import LimeTextExplainer
 # For security, it's best practice to load API keys from environment variables.
 # You can set this variable in your terminal before running the server.
 # IMPORTANT: Replace "YOUR_API_KEY_HERE" with your actual Gemini API Key.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyAIcd1VE4y-MVLPCTQyMz02Mgpty4ukwBo")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
