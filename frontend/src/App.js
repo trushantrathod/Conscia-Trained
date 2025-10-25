@@ -489,7 +489,7 @@ export default function App() {
                                                         <h3 className="product-name">{product.product_name}</h3>
                                                         <p className="product-category">{product.category}</p>
                                                         <p className="product-price">
-                                                            ₹{product.product_price ? parseFloat(product.product_price).toFixed(2) : '0.00'}
+                                                            ${product.product_price ? parseFloat(product.product_price).toFixed(2) : '0.00'}
                                                         </p>
                                                     </div>
                                                     <div className="card-scores-container">
