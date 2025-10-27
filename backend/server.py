@@ -9,21 +9,17 @@ import json
 import time
 
 # --- Local Imports ---
-# This line requires the sentiment_analyzer.py file to be in the same directory.
-from sentiment_analyzer import get_sentiment_score
+from sentiment_analyzer import get_sentiment_classification
 
 # --- Library Imports for Advanced Features ---
 import google.generativeai as genai
 from lime.lime_text import LimeTextExplainer
 
 # --- Configuration ---
-# For security, it's best practice to load API keys from environment variables.
-# You can set this variable in your terminal before running the server.
-# IMPORTANT: Replace "YOUR_API_KEY_HERE" with your actual Gemini API Key.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_KEY")
 
 # --- Flask App Initialization ---
-app = Flask(__name__)
+app = Flask(_name_)
 CORS(app)
 
 # --- Global Variables for Models & Data ---
@@ -40,7 +36,7 @@ def load_resources():
     """Loads all data, models, and necessary assets into memory on startup."""
     global products_df, vectorizer, scaler, model, gemini_model, explainer
     
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = os.path.dirname(os.path.abspath(_file_))
     
     # 1. Load Dataset
     try:
@@ -70,14 +66,14 @@ def load_resources():
     # 3. Configure Gemini API
     try:
         if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_API_KEY_HERE":
-            print("⚠️ WARNING: Gemini API Key not found. Chatbot and Summaries will be disabled.")
+            print("⚠ WARNING: Gemini API Key not found. Chatbot and Summaries will be disabled.")
             gemini_model = None
         else:
             genai.configure(api_key=GEMINI_API_KEY)
             gemini_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
             print("✅ Successfully configured Gemini API.")
     except Exception as e:
-        print(f"⚠️ WARNING: Could not configure Gemini API. {e}")
+        print(f"⚠ WARNING: Could not configure Gemini API. {e}")
         gemini_model = None
     
     # 4. Initialize LIME Explainer
@@ -120,13 +116,17 @@ def get_recommendations(category, top_n=5):
     return top_products[['product_name', 'avg_ethical_score']].to_dict(orient='records')
 
 def compare_products(product_name_a, product_name_b):
-    """Compares the ethical scores of two products."""
+    """Compares the ethical scores, sentiment, and price of two products."""
     product_a = get_product_details(product_name_a)
     product_b = get_product_details(product_name_b)
     if "error" in product_a or "error" in product_b:
         return {"error": "One or both products could not be found. Please check the names."}
     
-    score_cols = ['environmental impact', 'labor rights', 'animal welfare', 'corporate governance']
+    score_cols = [
+        'environmental impact', 'labor rights', 'animal welfare', 
+        'corporate governance', 'public_sentiment_score', 'product_price'
+    ]
+    
     return {
         product_a['product_name']: {k: v for k, v in product_a.items() if k in score_cols},
         product_b['product_name']: {k: v for k, v in product_b.items() if k in score_cols}
@@ -164,6 +164,32 @@ def get_products_by_ethical_score(order, top_n=5, category=None):
     top_products = sorted_products.head(top_n)
     return top_products[['product_name', 'avg_ethical_score']].to_dict(orient='records')
 
+# --- NEW TOOL ---
+def get_value_for_money_products(category, top_n=5):
+    """Gets the top N best value products based on price and sentiment."""
+    category_df = products_df[products_df['category'].str.lower() == category.lower()].copy()
+    if category_df.empty:
+        return {"error": f"Sorry, I don't have a '{category}' category."}
+    
+    # Ensure columns are numeric and drop rows with missing price/sentiment
+    category_df['product_price'] = pd.to_numeric(category_df['product_price'], errors='coerce')
+    category_df['public_sentiment_score'] = pd.to_numeric(category_df['public_sentiment_score'], errors='coerce')
+    category_df.dropna(subset=['product_price', 'public_sentiment_score'], inplace=True)
+    
+    # Filter out products with price 0 or less to avoid division by zero
+    category_df = category_df[category_df['product_price'] > 0]
+    
+    if category_df.empty:
+        return {"error": f"Not enough data to calculate value for '{category}'."}
+
+    # Calculate value score (higher is better)
+    category_df['value_score'] = category_df['public_sentiment_score'] / category_df['product_price']
+    
+    sorted_products = category_df.sort_values(by='value_score', ascending=False)
+    top_products = sorted_products.head(top_n)
+    
+    return top_products[['product_name', 'product_price', 'public_sentiment_score', 'value_score']].to_dict(orient='records')
+
 # --- API Endpoints ---
 
 @app.route('/api/products', methods=['GET'])
@@ -175,7 +201,9 @@ def get_products_endpoint():
 
 @app.route('/api/products/<product_id>/reviews', methods=['POST'])
 def add_review_endpoint(product_id):
-    """Adds a new review and dynamically updates the product's scores using the AI model."""
+    """
+    Adds a new review and dynamically updates ALL product scores.
+    """
     global products_df
     data = request.get_json()
     new_review = data.get('review')
@@ -187,19 +215,28 @@ def add_review_endpoint(product_id):
         return jsonify({'error': 'Product not found'}), 404
     idx = product_index[0]
 
+    # 1. Append the new review to the product's review history
     current_reviews = products_df.at[idx, 'reviews']
-    updated_reviews = f"{current_reviews} | {new_review}" if pd.notna(current_reviews) else new_review
+    updated_reviews = f"{current_reviews} | {new_review}" if pd.notna(current_reviews) and str(current_reviews).strip() else new_review
     products_df.at[idx, 'reviews'] = updated_reviews
-
-    new_ethical_scores = predict_ethical_scores(updated_reviews)
-    products_df.at[idx, 'environmental impact'] = new_ethical_scores[0]
-    products_df.at[idx, 'labor rights'] = new_ethical_scores[1]
-    products_df.at[idx, 'animal welfare'] = new_ethical_scores[2]
-    products_df.at[idx, 'corporate governance'] = new_ethical_scores[3]
     
-    products_df.at[idx, 'public_sentiment_score'] = get_sentiment_score(updated_reviews)
+    # 3. Update Public Sentiment using the "Nudge" Logic
+    classification = get_sentiment_classification(new_review, gemini_model)
+    current_score = products_df.at[idx, 'public_sentiment_score']
+    NUDGE_AMOUNT = 2.0 
 
-    data_path = os.path.join(os.path.dirname(__file__), 'data', 'products_with_scores.csv')
+    if classification == "positive":
+        new_score = current_score + NUDGE_AMOUNT
+    elif classification == "negative":
+        new_score = current_score - NUDGE_AMOUNT
+    else:
+        new_score = current_score
+
+    new_score = round(max(0, min(100, new_score)), 2)
+    products_df.at[idx, 'public_sentiment_score'] = new_score
+
+    # 4. Save changes back to the CSV
+    data_path = os.path.join(os.path.dirname(_file_), 'data', 'products_with_scores.csv')
     products_df.to_csv(data_path, index=False)
     
     print(f"✅ Updated scores for {product_id} based on new review.")
@@ -232,7 +269,7 @@ def get_snapshot_endpoint():
 
 @app.route('/api/explain', methods=['POST'])
 def explain_prediction_endpoint():
-    """Uses LIME to explain which words influenced the model's scores."""
+    """Uses LIME to explain which words influenced the custom model's scores."""
     data = request.get_json()
     review_text = data.get('reviews', '')
     
@@ -262,37 +299,39 @@ def chat_endpoint():
     history = data.get('history')
     user_query = history[-1]['parts'][0]['text'] if history else ""
 
+    # --- MODIFIED SYSTEM PROMPT ---
     system_prompt = """
     You are an AI orchestrator. Your job is to determine which tool to call based on the user's query and the conversation history.
     You must respond ONLY with a JSON object containing a "tool" and "parameters".
-    If the user's query does not specify a number for `top_n`, you should default to `top_n=3`.
-    If the user is just greeting, making small talk, or the query doesn't fit any other tool, you MUST use the `general_knowledge` tool.
+    If the user's query does not specify a number for top_n, you should default to top_n=3.
+    If the user is just greeting, making small talk, or the query doesn't fit any other tool, you MUST use the general_knowledge tool.
 
     Your available tools are:
-    1. `get_product_details(product_name: str)`
+    1. get_product_details(product_name: str)
        - Use for specific questions about one product.
 
-    2. `get_recommendations(category: str, top_n: int = 5)`
+    2. get_recommendations(category: str, top_n: int = 5)
        - Use when the user asks for general recommendations in a category without specifying 'best' or 'worst'.
 
-    3. `compare_products(product_name_a: str, product_name_b: str)`
+    3. compare_products(product_name_a: str, product_name_b: str)
        - Use when the user wants to compare two specific products.
 
-    4. `get_products_by_price(category: str, order: str, top_n: int = 5)`
+    4. get_products_by_price(category: str, order: str, top_n: int = 5)
        - Use when the user asks about price.
-       - The `order` parameter MUST be either 'expensive' or 'cheap'.
-       - Example: "show me the 5 cheapest fashion items" -> `{"tool": "get_products_by_price", "parameters": {"category": "fashion", "order": "cheap", "top_n": 5}}`
+       - The order parameter MUST be either 'expensive' or 'cheap'.
 
-    5. `get_products_by_ethical_score(order: str, top_n: int = 5, category: str = None)`
+    5. get_products_by_ethical_score(order: str, top_n: int = 5, category: str = None)
        - Use when the user asks for the "best", "most ethical", "worst", or "lowest rated" products.
-       - The `order` parameter MUST be either 'best' or 'worst'.
-       - The `category` parameter is optional.
-       - Example: "what are the top 3 best products overall?" -> `{"tool": "get_products_by_ethical_score", "parameters": {"order": "best", "top_n": 3}}`
-       - Example: "list the 2 worst electronics" -> `{"tool": "get_products_by_ethical_score", "parameters": {"order": "worst", "top_n": 2, "category": "electronics"}}`
+       - The order parameter MUST be either 'best' or 'worst'.
 
-    6. `general_knowledge()`
+    6. get_value_for_money_products(category: str, top_n: int = 5)
+       - *** USE THIS TOOL *** when the user asks for "value for money", "best value", or "good value" products.
+       - Example: "show me top 5 value for money beauty items" -> {"tool": "get_value_for_money_products", "parameters": {"category": "beauty", "top_n": 5}}
+
+    7. general_knowledge()
        - Use for anything else, like greetings or questions not related to product data.
     """
+    # --- END OF MODIFICATION ---
 
     try:
         model_history = []
@@ -301,42 +340,50 @@ def chat_endpoint():
             model_history.append({'role': role, 'parts': message['parts']})
 
         chat_session = gemini_model.start_chat(history=model_history)
+        
+        # 1. First call: Determine user's intent
         intent_response = chat_session.send_message(f"User Query: \"{user_query}\"\n\n{system_prompt}")
         
-        raw_text = intent_response.text.strip().replace("```json", "").replace("```", "").strip()
+        raw_text = intent_response.text.strip().replace("json", "").replace("", "").strip()
         
         try:
             intent_data = json.loads(raw_text)
         except json.JSONDecodeError:
-            print(f"⚠️ Gemini did not return valid JSON for intent. Defaulting to general_knowledge. Response: {raw_text}")
+            print(f"⚠ Gemini did not return valid JSON for intent. Defaulting to general_knowledge. Response: {raw_text}")
             intent_data = {"tool": "general_knowledge", "parameters": {}}
 
         tool_to_call = intent_data.get("tool")
         parameters = intent_data.get("parameters", {})
 
+        # --- MODIFIED TOOL MAP ---
         tool_map = {
             "get_product_details": get_product_details,
             "get_recommendations": get_recommendations,
             "compare_products": compare_products,
             "get_products_by_price": get_products_by_price,
             "get_products_by_ethical_score": get_products_by_ethical_score,
+            "get_value_for_money_products": get_value_for_money_products, # Added new tool
         }
+        # --- END OF MODIFICATION ---
 
         if tool_to_call in tool_map:
             tool_result = tool_map[tool_to_call](**parameters)
         else:
             tool_result = {"query": user_query}
 
+        # 3. Second call: Formulate a concise, factual response
         response_prompt = f"""
-        You are Conscia, a friendly and helpful AI shopping assistant. Formulate a natural, conversational response based on the tool's result.
-        - NEVER just output raw JSON.
-        - Format lists of products or comparisons clearly with bullet points or tables.
-        - If a tool returns an error, explain it to the user in a friendly way.
+        You are Conscia, an AI shopping assistant.
+        - ALWAYS be concise, factual, and get straight to the point.
+        - DO NOT use filler phrases like "That's a great question!"
+        - Format lists of products or comparisons clearly with bullet points.
+        - If the user asks about "value," use the 'product_price' and 'public_sentiment_score' to make a recommendation.
 
         TOOL RESULT: {json.dumps(tool_result, indent=2)}
 
-        Now, write your friendly reply to the user.
+        Now, write your concise, helpful reply to the user.
         """
+        
         final_response = chat_session.send_message(response_prompt)
         return jsonify({"reply": final_response.text})
 
@@ -345,9 +392,9 @@ def chat_endpoint():
         return jsonify({"reply": "I'm sorry, I had a little trouble processing that. Could you please rephrase your question?"})
 
 # --- Main Execution ---
-if __name__ == '__main__':
+if _name_ == '_main_':
     if load_resources():
         print("\n✨ All resources loaded. Starting Conscia Universal Server... ✨")
         app.run(debug=True, port=5000)
     else:
-        print("\n❌ Failed to load critical resources. Server will not start.")
+        print("\n❌ Failed to load critical resources. Server will not start.")
