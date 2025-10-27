@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css'
 
 // --- Helper & Icon Components ---
-const LoadingSpinner = () => ( <svg style={{height: '2rem', width: '2rem', color: 'white', animation: 'spin 1s linear infinite'}} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style={{opacity: 0.25}} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path style={{opacity: 0.75}} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
-const ChatIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 2.25zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.06 1.06a.75.75 0 01-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zM5.106 18.894a.75.75 0 010-1.06l1.06-1.06a.75.75 0 011.06 1.06l-1.06 1.06a.75.75 0 01-1.06 0zM18.894 18.894a.75.75 0 01-1.06 0l-1.06-1.06a.75.75 0 011.06-1.06l1.06 1.06a.75.75 0 010 1.06zM21.75 12a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75zM2.25 12a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H3a.75.75 0 01-.75-.75zM6.106 5.106a.75.75 0 011.06 0l1.06 1.06a.75.75 0 01-1.06 1.06L6.106 6.166a.75.75 0 010-1.06zM12 18a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 18z"></path></svg>);
+const LoadingSpinner = () => ( <svg style={{height: '2rem', width: '2rem', animation: 'spin 1s linear infinite'}} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style={{opacity: 0.25}} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path style={{opacity: 0.75}} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>);
+const SunIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 2.25zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.06 1.06a.75.75 0 01-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zM5.106 18.894a.75.75 0 010-1.06l1.06-1.06a.75.75 0 011.06 1.06l-1.06 1.06a.75.75 0 01-1.06 0zM18.894 18.894a.75.75 0 01-1.06 0l-1.06-1.06a.75.75 0 011.06-1.06l1.06 1.06a.75.75 0 010 1.06zM21.75 12a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75zM2.25 12a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H3a.75.75 0 01-.75-.75zM6.106 5.106a.75.75 0 011.06 0l1.06 1.06a.75.75 0 01-1.06 1.06L6.106 6.166a.75.75 0 010-1.06zM12 18a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0112 18z"></path></svg>);
+const MoonIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.72-6.636 4.43-8.441a.75.75 0 01.819.162z" clipRule="evenodd" /></svg>);
+const ChatBubbleIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 006 21.75a6.75 6.75 0 006.75-6.75v-2.5A6.75 6.75 0 006 5.75a6.707 6.707 0 00-1.196.094 7.5 7.5 0 00-4.661 6.06c0 1.63.533 3.16 1.44 4.357.907 1.197 2.129 2.14 3.521 2.783zM14.25 15v2.5a6.75 6.75 0 006.75 6.75c.217 0 .431-.01.644-.028a7.5 7.5 0 004.661-6.06c0-1.63-.533-3.16-1.44-4.357-.907-1.197-2.129-2.14-3.521-2.783A6.707 6.707 0 0018 5.75a6.75 6.75 0 00-6.75 6.75v2.5z" clipRule="evenodd" /></svg>);
 const CloseIcon = ({ style }) => ( <svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
 const SearchIcon = ({ className }) => ( <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5ZM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" /></svg>);
 const HamburgerIcon = ({ style }) => (<svg style={style} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fillRule="evenodd" d="M3 6.75A.75.75 0 013.75 6h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 6.75ZM3 12a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75A.75.75 0 013 12Zm0 5.25a.75.75 0 01.75-.75h16.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z" clipRule="evenodd" /></svg>);
 
-// This file uses inline styles and CSS classes defined in the <style> tag in index.html
-// No external './App.css' is needed.
 
 export default function App() {
     const [products, setProducts] = useState([]);
@@ -33,9 +33,20 @@ export default function App() {
     const [activeView, setActiveView] = useState('home');
     const [isNavOpen, setIsNavOpen] = useState(false);
     const [showTooltip, setShowTooltip] = useState(true);
+    const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
     const observer = useRef();
     const chatBodyRef = useRef(null);
     const API_URL = 'http://localhost:5000/api';
+    
+    // --- Theme Switching Effect ---
+    useEffect(() => {
+        // Apply the theme to the <html> element
+        document.documentElement.setAttribute('data-theme', theme);
+    }, [theme]);
+
+    const toggleTheme = () => {
+        setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
+    };
     
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -212,15 +223,26 @@ export default function App() {
 
     const Navbar = () => (
         <nav className="navbar">
-            {activeView === 'about' ? (
+            {activeView === 'about' && (
                 <div className="navbar-brand" onClick={() => handleNavClick('home')}>
                     Conscia
                 </div>
-            ) : (
-                <div></div>
             )}
-            <div className="navbar-menu-container">
-                <button className="hamburger-btn" onClick={() => setIsNavOpen(!isNavOpen)}>
+            
+            <button 
+                className="navbar-btn theme-toggle-btn" 
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Activate Light Mode' : 'Activate Dark Mode'}
+            >
+                {theme === 'dark' ? (
+                    <SunIcon style={{height: '1.5rem', width: '1.5rem'}} />
+                ) : (
+                    <MoonIcon style={{height: '1.5rem', width: '1.5rem'}} />
+                )}
+            </button>
+            
+            <div className="nav-menu-container">
+                <button className="navbar-btn hamburger-btn" onClick={() => setIsNavOpen(!isNavOpen)}>
                     <HamburgerIcon style={{height: '1.75rem', width: '1.75rem'}} />
                 </button>
                 {isNavOpen && (
@@ -256,7 +278,6 @@ export default function App() {
             });
         }
 
-        // Split the full review text into individual review strings
         const individualReviews = text.split(' | ').filter(review => review.trim() !== '');
 
         const renderSingleReview = (reviewText) => {
@@ -273,7 +294,7 @@ export default function App() {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {individualReviews.map((review, index) => (
-                    <p key={index} style={{ color: '#d1d5db', lineHeight: 1.6, margin: 0 }}>
+                    <p key={index} style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>
                         {renderSingleReview(review)}
                     </p>
                 ))}
@@ -284,7 +305,7 @@ export default function App() {
 
     const AboutPage = React.memo(() => (
         <div className="about-page glass-effect">
-            <h2>About Conscia</h2>
+            <h2>About Conscia 💡</h2>
             <h3>Our Mission</h3>
             <p>
                 Our mission is to empower consumers with the information they need to shop according to their values. We analyze product reviews and data across four key pillars: Environmental Impact, Labor Rights, Animal Welfare, and Corporate Governance.
@@ -312,7 +333,7 @@ export default function App() {
             <>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem'}}>
                     <div>
-                        <h2 style={{fontSize: '1.875rem', fontWeight: 700, color: '#f1f5f9', margin: 0}}>{selectedProduct.product_name}</h2>
+                        <h2 style={{fontSize: '1.875rem', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0}}>{selectedProduct.product_name}</h2>
                         <p style={{fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-accent)', margin: '0.25rem 0 0 0'}}>${selectedProduct.product_price ? parseFloat(selectedProduct.product_price).toFixed(2) : '0.00'}</p>
                     </div>
                     <button onClick={() => setSelectedProduct(null)} style={{background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem'}}>
@@ -329,7 +350,7 @@ export default function App() {
                                     <div key={item.key}>
                                         <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
                                             <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{item.label}</span>
-                                            <span style={{fontWeight: 700, color: 'white'}}>{(selectedProduct[item.key] || 0).toFixed(0)} / 100</span>
+                                            <span style={{fontWeight: 700, color: 'var(--color-text-primary)'}}>{(selectedProduct[item.key] || 0).toFixed(0)} / 100</span>
                                         </div>
                                         <div className="card-score-bar-bg">
                                             <div className={`card-score-bar-fill ${item.colorClass}`} style={{ width: `${selectedProduct[item.key] || 0}%` }}></div>
@@ -345,7 +366,7 @@ export default function App() {
                              <div>
                                 <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
                                     <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{sentimentScore.label}</span>
-                                    <span style={{fontWeight: 700, color: 'white'}}>{(selectedProduct[sentimentScore.key] || 0).toFixed(0)} / 100</span>
+                                    <span style={{fontWeight: 700, color: 'var(--color-text-primary)'}}>{(selectedProduct[sentimentScore.key] || 0).toFixed(0)} / 100</span>
                                 </div>
                                 <div className="card-score-bar-bg">
                                     <div className={`card-score-bar-fill ${sentimentScore.colorClass}`} style={{ width: `${selectedProduct[sentimentScore.key] || 0}%` }}></div>
@@ -357,18 +378,18 @@ export default function App() {
                             <button onClick={handleGetSummary} disabled={isSummaryLoading} className="review-submit-btn">
                                 {isSummaryLoading ? 'Generating...' : 'Get AI Ethical Snapshot'}
                             </button>
-                            {summary && <div style={{marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--color-background)', borderRadius: '8px', color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6}}>{summary}</div>}
+                            {summary && <div style={{marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--color-background-light)', borderRadius: '8px', color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6}}>{summary}</div>}
                         </div>
                     </div>
                     <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                          <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin:0}}>Review Analysis (XAI)</h3>
-                         <div style={{padding: '1rem', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '8px', maxHeight: '20rem', overflowY: 'auto'}}>
+                         <div style={{padding: '1rem', backgroundColor: 'var(--color-input-bg)', borderRadius: '8px', maxHeight: '20rem', overflowY: 'auto'}}>
                             {isModalLoading ? <div style={{display: 'flex', justifyContent: 'center'}}><LoadingSpinner /></div> : <HighlightedReview text={selectedProduct.reviews} explanation={explanation} />}
                         </div>
                         <p style={{fontSize: '0.75rem', color: 'var(--color-text-secondary)', textAlign: 'center', margin: 0}}>Words are highlighted based on their influence on the AI's scores.</p>
                         
                         <form onSubmit={handleReviewSubmit} style={{ paddingTop: '1rem' }}>
-                            <h3 className="review-form-title">Add Your Review</h3>
+                            <h3 className="review-form-title">Add Your Review ✍️</h3>
                             <textarea
                                 className="review-textarea"
                                 value={newReview}
@@ -391,7 +412,7 @@ export default function App() {
     const renderChatWindow = () => (
         <div className="chat-window glass-effect">
             <header className="chat-header">
-                <h3>Conscia Assistant</h3>
+                <h3>Conscia Assistant 🤖</h3>
             </header>
             <div ref={chatBodyRef} className="chat-body">
                 {chatHistory.length === 0 && (
@@ -435,7 +456,7 @@ export default function App() {
                 {activeView !== 'about' && (
                     <>
                         <h1 className="main-title">Conscia</h1>
-                        <p className="app-subtitle">Your AI-Powered Ethical Shopping Companion. Uncover the story behind every product.</p>
+                        <p className="app-subtitle">Your AI-Powered Ethical Shopping Companion. 🤖 Uncover the story behind every product.</p>
                     </>
                 )}
             </header>
@@ -444,7 +465,7 @@ export default function App() {
                 {activeView === 'home' || activeView === 'products' ? (
                     <>
                         <div className="controls-container glass-effect">
-                            <h2 className="controls-title">Explore Products</h2>
+                            <h2 className="controls-title">Explore Products 🛍️</h2>
                             <div className="category-buttons">
                                 {categories.map((cat) => (
                                 <button
@@ -473,7 +494,7 @@ export default function App() {
 
                         {activeView === 'products' && (
                             isLoading ? <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4rem' }}><LoadingSpinner /></div>
-                            : error ? <div className="error-box glass-effect"><h3 className="error-title">Connection Error</h3><p>{error}</p></div>
+                            : error ? <div className="error-box glass-effect"><h3 className="error-title">Connection Error 🔌</h3><p>{error}</p></div>
                             : (
                                 <>
                                     {filteredProducts.length > 0 ? (
@@ -526,7 +547,7 @@ export default function App() {
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className="empty-state glass-effect"><h3 className="empty-title">No Products Found</h3><p>Try adjusting your search or category filters.</p></div>
+                                        <div className="empty-state glass-effect"><h3 className="empty-title">No Products Found 😔</h3><p>Try adjusting your search or category filters.</p></div>
                                     )}
                                     {visibleCount < filteredProducts.length && !isLoading && <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}><LoadingSpinner /></div>}
                                 </>
@@ -553,7 +574,7 @@ export default function App() {
                     </div>
                 )}
                 <button onClick={() => { setIsChatOpen(!isChatOpen); setShowTooltip(false); }} className="chat-fab-button">
-                    {isChatOpen ? <CloseIcon style={{height: '2rem', width: '2rem'}}/> : <ChatIcon style={{height: '2rem', width: '2rem'}}/>}
+                    {isChatOpen ? <CloseIcon style={{height: '2rem', width: '2rem'}}/> : <ChatBubbleIcon style={{height: '2rem', width: '2rem'}}/>}
                 </button>
             </div>
             
@@ -561,4 +582,3 @@ export default function App() {
         </div>
     );
 }
-

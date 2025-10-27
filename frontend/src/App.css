@@ -1,6 +1,8 @@
 /* --- CSS Variables, Fonts & Global Styles --- */
-@import url('https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;500;600;700;800&display=swap');
+/* Added italic 'Poppins' (ital,wght@1,700) for the new title */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,500;0,700;1,700&family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
+/* --- DEFAULT THEME: DARK --- */
 :root {
     --color-background: #0A0A0A;
     --color-background-light: #1C1C1C;
@@ -8,8 +10,36 @@
     --color-text-secondary: #a1a1aa;
     --color-border: rgba(255, 255, 255, 0.1);
     --color-accent: #4f8aff;
-    --font-cursive: 'Pacifico', cursive;
+    
+    --color-glass-bg: rgba(30, 30, 30, 0.5);
+    --color-glass-border: rgba(255, 255, 255, 0.1);
+    --color-input-bg: rgba(0,0,0,0.2);
+
+    --font-display: 'Poppins', sans-serif;
     --font-sans: 'Inter', sans-serif;
+    --font-serif: 'Merriweather', serif;
+
+    /* --- NEW Animation Variables --- */
+    --color-bg-animated-gradient: linear-gradient(125deg, #0A0A0A, #120b1f, #0A0A0A, #1f120b, #0A0A0A);
+    --color-title-gradient: linear-gradient(90deg, var(--color-accent), #f1f5f9, var(--color-accent));
+}
+
+/* --- LIGHT THEME OVERRIDES --- */
+[data-theme='light'] {
+    --color-background: #F4F4F5; /* Light Gray */
+    --color-background-light: #FFFFFF;
+    --color-text-primary: #18181B; /* Dark Zinc */
+    --color-text-secondary: #52525B; /* Medium Zinc */
+    --color-border: rgba(0, 0, 0, 0.1);
+    --color-accent: #3b82f6; /* Blue */
+    
+    --color-glass-bg: rgba(255, 255, 255, 0.6);
+    --color-glass-border: rgba(0, 0, 0, 0.08);
+    --color-input-bg: rgba(0,0,0,0.05);
+
+    /* --- NEW Light Animation Variables --- */
+    --color-bg-animated-gradient: linear-gradient(125deg, #F4F4F5, #f0f0ff, #F4F4F5, #fff0f0, #F4F4F5);
+    --color-title-gradient: linear-gradient(90deg, var(--color-accent), #1e293b, var(--color-accent));
 }
 
 body {
@@ -19,21 +49,32 @@ body {
     -moz-osx-font-smoothing: grayscale;
     
     background-color: var(--color-background);
-    background-image: 
-        radial-gradient(circle at top right, rgba(120, 84, 222, 0.2), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.15), transparent 50%);
-    background-attachment: fixed;
     color: var(--color-text-primary);
+    background-attachment: fixed;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    
+    /* --- UPDATED Background Animation --- */
+    background-image: var(--color-bg-animated-gradient);
+    background-size: 400% 400%;
+    animation: animatedGradient 20s ease infinite;
 }
 
 * {
     box-sizing: border-box;
 }
 
+/* --- NEW Keyframes for Animations --- */
+@keyframes animatedGradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--color-background); }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+::-webkit-scrollbar-thumb:hover { background: rgba(128, 128, 128, 0.5); }
 
 /* --- Main Layout & Structure --- */
 .main-container {
@@ -50,12 +91,24 @@ body {
     animation: fadeInDown 0.8s ease-out;
 }
 
+/* --- UPDATED Title Style --- */
 .main-title {
-    font-family: var(--font-cursive);
+    font-family: var(--font-display);
     font-size: 4.5rem;
-    font-weight: 400;
-    color: var(--color-text-primary);
-    text-shadow: 0 0 25px rgba(79, 138, 255, 0.5);
+    font-weight: 700;
+    font-style: italic; /* Added italic style */
+
+    /* Animated Gradient Text Clip */
+    background-image: var(--color-title-gradient);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: animatedGradient 8s ease infinite; /* Re-using the keyframe */
+}
+
+[data-theme='light'] .main-title {
+    text-shadow: none; /* Ensure no shadow in light mode */
 }
 
 .app-subtitle {
@@ -63,6 +116,7 @@ body {
     color: var(--color-text-secondary);
     max-width: 600px;
     margin: 0.5rem auto 0;
+    font-style: italic; 
 }
 
 @keyframes fadeInDown {
@@ -70,15 +124,19 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- Enhanced Glass Effect --- */
+/* --- Enhanced Glass Effect (Now Theme-Aware) --- */
 .glass-effect {
-    background: rgba(30, 30, 30, 0.5);
+    background: var(--color-glass-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-radius: 1rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--color-glass-border);
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+[data-theme='light'] .glass-effect {
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
 }
 
 /* --- Controls: Categories & Search --- */
@@ -136,10 +194,10 @@ body {
     padding: 0.75rem 1rem 0.75rem 2.5rem;
     border-radius: 9999px;
     border: 1px solid var(--color-border);
-    background-color: rgba(0,0,0,0.2);
+    background-color: var(--color-input-bg);
     color: var(--color-text-primary);
     font-size: 1rem;
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
 }
 .search-input:focus {
     outline: none;
@@ -188,6 +246,7 @@ body {
     font-size: 0.875rem;
     color: var(--color-text-secondary);
     margin: 0.25rem 0 0.75rem 0;
+    font-style: italic; 
 }
 
 .product-price {
@@ -224,6 +283,7 @@ body {
     background-color: var(--color-background-light);
     border-radius: 3px;
     overflow: hidden;
+    transition: background-color 0.3s ease;
 }
 
 .card-score-bar-fill {
@@ -261,6 +321,10 @@ body {
     animation: fadeIn 0.3s ease;
 }
 
+[data-theme='light'] .modal-overlay {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -290,13 +354,14 @@ body {
 .review-textarea {
     width: 100%;
     min-height: 100px;
-    background-color: rgba(0,0,0,0.2);
+    background-color: var(--color-input-bg);
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 0.75rem;
     color: var(--color-text-primary);
     margin-bottom: 1rem;
     resize: vertical;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
 }
 .review-textarea:focus {
     outline: none;
@@ -322,6 +387,11 @@ body {
     background-color: #334155;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+[data-theme='light'] .review-submit-btn:disabled {
+    background-color: #94a3b8;
+    color: #e2e8f0;
 }
 
 /* --- Chat FAB & Window --- */
@@ -422,6 +492,7 @@ body {
     background-color: var(--color-background-light);
     color: var(--color-text-primary);
     border-bottom-left-radius: 0.25rem;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .chat-input-form {
@@ -434,8 +505,9 @@ body {
     padding: 0.75rem;
     border-radius: 8px;
     border: 1px solid var(--color-border);
-    background-color: rgba(0,0,0,0.2);
+    background-color: var(--color-input-bg);
     color: var(--color-text-primary);
+    transition: border-color 0.3s ease, background-color 0.3s ease;
 }
 .chat-input:focus {
     outline: none;
@@ -446,7 +518,7 @@ body {
 .typing-indicator span {
     height: 8px;
     width: 8px;
-    background-color: #94a3b8;
+    background-color: var(--color-text-secondary);
     border-radius: 50%;
     display: inline-block;
     margin: 0 2px;
@@ -486,6 +558,7 @@ body {
     overflow: hidden; /* Important for the pseudo-element */
 }
 
+/* This gradient is different and should be kept */
 .about-page::before {
     content: '';
     position: absolute;
@@ -506,15 +579,21 @@ body {
 }
 
 .about-page h2 {
-    font-family: var(--font-cursive);
+    font-family: var(--font-display);
     font-size: 2.5rem;
     color: var(--color-text-primary);
-    font-weight: 400;
+    font-weight: 700;
 }
 .about-page h3 {
     font-size: 1.5rem;
     color: var(--color-text-primary);
     margin-top: 2rem;
+}
+.about-page p {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    color: var(--color-text-secondary);
+    font-style: italic; 
 }
 
 
@@ -524,12 +603,15 @@ body {
     top: 1rem;
     right: 1rem;
     z-index: 1002;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
 }
 
 .navbar-brand {
-    font-family: var(--font-cursive);
+    font-family: var(--font-display);
     font-size: 1.75rem;
-    font-weight: 400;
+    font-weight: 700;
     color: var(--color-text-primary);
     cursor: pointer;
     position: fixed;
@@ -537,9 +619,9 @@ body {
     left: 1.5rem;
 }
 
-.hamburger-btn {
-    background: rgba(30, 30, 30, 0.5);
-    border: 1px solid var(--color-border);
+.navbar-btn {
+    background: var(--color-glass-bg);
+    border: 1px solid var(--color-glass-border);
     border-radius: 50%;
     color: var(--color-text-primary);
     cursor: pointer;
@@ -549,6 +631,14 @@ body {
     justify-content: center;
     height: 40px;
     width: 40px;
+    transition: all 0.2s ease;
+}
+.navbar-btn:hover {
+    border-color: var(--color-accent);
+}
+
+.nav-menu-container {
+    position: relative;
 }
 
 .nav-menu {
@@ -560,6 +650,7 @@ body {
     flex-direction: column;
     gap: 0.5rem;
     margin-top: 0.5rem;
+    min-width: 150px;
 }
 
 .nav-menu-item {
@@ -576,4 +667,3 @@ body {
 .nav-menu-item:hover {
     background-color: var(--color-background-light);
 }
-

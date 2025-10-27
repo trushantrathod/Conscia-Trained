@@ -303,33 +303,36 @@ def chat_endpoint():
     system_prompt = """
     You are an AI orchestrator. Your job is to determine which tool to call based on the user's query and the conversation history.
     You must respond ONLY with a JSON object containing a "tool" and "parameters".
-    If the user's query does not specify a number for `top_n`, you should default to `top_n=3`.
-    If the user is just greeting, making small talk, or the query doesn't fit any other tool, you MUST use the `general_knowledge` tool.
+    If the user's query does not specify a number for top_n, you should default to top_n=3.
+    
+    # --- CHANGED ---
+    If the user's query does not fit any other tool (like greetings, small talk, or off-topic questions), 
+    you MUST use the general_knowledge tool.
+    # --- END OF CHANGE ---
 
     Your available tools are:
-    1. `get_product_details(product_name: str)`
+    1. get_product_details(product_name: str)
        - Use for specific questions about one product.
 
-    2. `get_recommendations(category: str, top_n: int = 5)`
+    2. get_recommendations(category: str, top_n: int = 5)
        - Use when the user asks for general recommendations in a category without specifying 'best' or 'worst'.
 
-    3. `compare_products(product_name_a: str, product_name_b: str)`
+    3. compare_products(product_name_a: str, product_name_b: str)
        - Use when the user wants to compare two specific products.
 
-    4. `get_products_by_price(category: str, order: str, top_n: int = 5)`
+    4. get_products_by_price(category: str, order: str, top_n: int = 5)
        - Use when the user asks about price.
-       - The `order` parameter MUST be either 'expensive' or 'cheap'.
+       - The order parameter MUST be either 'expensive' or 'cheap'.
 
-    5. `get_products_by_ethical_score(order: str, top_n: int = 5, category: str = None)`
+    5. get_products_by_ethical_score(order: str, top_n: int = 5, category: str = None)
        - Use when the user asks for the "best", "most ethical", "worst", or "lowest rated" products.
-       - The `order` parameter MUST be either 'best' or 'worst'.
+       - The order parameter MUST be either 'best' or 'worst'.
 
-    6. `get_value_for_money_products(category: str, top_n: int = 5)`
+    6. get_value_for_money_products(category: str, top_n: int = 5)
        - *** USE THIS TOOL *** when the user asks for "value for money", "best value", or "good value" products.
-       - Example: "show me top 5 value for money beauty items" -> `{"tool": "get_value_for_money_products", "parameters": {"category": "beauty", "top_n": 5}}`
 
-    7. `general_knowledge()`
-       - Use for anything else, like greetings or questions not related to product data.
+    7. general_knowledge()
+       - Use for anything else, like greetings ("hi", "hello", "thanks") or questions not related to product data ("who is superman").
     """
     # --- END OF MODIFICATION ---
 
@@ -344,12 +347,12 @@ def chat_endpoint():
         # 1. First call: Determine user's intent
         intent_response = chat_session.send_message(f"User Query: \"{user_query}\"\n\n{system_prompt}")
         
-        raw_text = intent_response.text.strip().replace("```json", "").replace("```", "").strip()
+        raw_text = intent_response.text.strip().replace("json", "").replace("```", "").strip()
         
         try:
             intent_data = json.loads(raw_text)
         except json.JSONDecodeError:
-            print(f"⚠️ Gemini did not return valid JSON for intent. Defaulting to general_knowledge. Response: {raw_text}")
+            print(f"⚠ Gemini did not return valid JSON for intent. Defaulting to general_knowledge. Response: {raw_text}")
             intent_data = {"tool": "general_knowledge", "parameters": {}}
 
         tool_to_call = intent_data.get("tool")
@@ -362,16 +365,43 @@ def chat_endpoint():
             "compare_products": compare_products,
             "get_products_by_price": get_products_by_price,
             "get_products_by_ethical_score": get_products_by_ethical_score,
-            "get_value_for_money_products": get_value_for_money_products, # Added new tool
+            "get_value_for_money_products": get_value_for_money_products,
         }
         # --- END OF MODIFICATION ---
+        
+        # --- NEW LOGIC: Handle general_knowledge tool ---
+        if tool_to_call == "general_knowledge":
+            # --- NEW FILTER CALL ---
+            filter_prompt = f"""
+            Is the following user query a simple greeting (like 'hi', 'hello', 'how are you', 'thanks') 
+            or is it a general knowledge/off-topic question (like 'who is superman', 'what is the capital of France')?
+            Respond with ONLY the single word: GREETING or GENERAL_KNOWLEDGE.
 
-        if tool_to_call in tool_map:
+            User query: "{user_query}"
+            """
+            try:
+                filter_response = gemini_model.generate_content(filter_prompt)
+                filter_result = filter_response.text.strip().upper()
+
+                if "GREETING" in filter_result:
+                    # Handle greeting
+                    return jsonify({"reply": "Hello! As the Conscia AI assistant, how can I help you explore our ethical products today?"})
+                else:
+                    # Handle general knowledge / off-topic
+                    return jsonify({"reply": "I'm sorry, I am an AI assistant for Conscia and can only answer questions related to our products, categories, and ethical scores."})
+            except Exception as e:
+                print(f"❌ Chatbot filter error: {e}")
+                return jsonify({"reply": "I'm sorry, I had a little trouble processing that. Could you please rephrase your question?"})
+            # --- END OF NEW FILTER CALL ---
+
+        elif tool_to_call in tool_map:
             tool_result = tool_map[tool_to_call](**parameters)
         else:
-            tool_result = {"query": user_query}
-
-        # 3. Second call: Formulate a concise, factual response
+            # This is now a fallback for any other error
+            print(f"⚠ Error: Tool '{tool_to_call}' not found in tool_map.")
+            return jsonify({"reply": "I'm sorry, I had a little trouble processing that. Could you please rephrase your question?"})
+        
+        # 3. Second call: Formulate a concise, factual response (only for product-related tools)
         response_prompt = f"""
         You are Conscia, an AI shopping assistant.
         - ALWAYS be concise, factual, and get straight to the point.
@@ -390,7 +420,6 @@ def chat_endpoint():
     except Exception as e:
         print(f"❌ Chatbot error: {e}")
         return jsonify({"reply": "I'm sorry, I had a little trouble processing that. Could you please rephrase your question?"})
-
 # --- Main Execution ---
 if __name__ == '__main__':
     if load_resources():
