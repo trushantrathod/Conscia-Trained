@@ -1,71 +1,58 @@
-import pandas as pd
 import nltk
+import numpy as np
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
-import re
+from transformers import pipeline
 
-# --- Download VADER Lexicon (if needed on a new machine) ---
+# Download VADER
 try:
     nltk.data.find('sentiment/vader_lexicon.zip')
-except LookupError:
-    print("Downloading VADER lexicon for sentiment analysis (one-time setup)...")
+except:
     nltk.download('vader_lexicon')
 
-def get_vader_classification(reviews_text):
-    """
-    Fallback: Classifies text as positive, negative, or neutral using VADER.
-    """
-    if not reviews_text or pd.isna(reviews_text):
-        return "neutral"
+# Initialize models (load once)
+sia = SentimentIntensityAnalyzer()
+bert = pipeline("sentiment-analysis")
 
-    sid = SentimentIntensityAnalyzer()
-    compound_score = sid.polarity_scores(str(reviews_text))['compound']
-    
-    if compound_score >= 0.05:
-        return "positive"
-    elif compound_score <= -0.05:
-        return "negative"
-    else:
-        return "neutral"
+# -----------------------------
+# VADER SCORE
+# -----------------------------
+def vader_score(text):
+    score = sia.polarity_scores(text)['compound']  # -1 to +1
+    return (score + 1) * 50  # → 0 to 100
 
-
-def get_sentiment_classification(reviews_text, gemini_model):
-    """
-    Calculates a sentiment classification using Gemini if available,
-    otherwise falls back to VADER.
-    """
-    if not reviews_text or pd.isna(reviews_text):
-        return "neutral"
-
-    # --- Fallback 1: If Gemini API key is missing ---
-    if not gemini_model:
-        return get_vader_classification(reviews_text)
-
-    # --- New Gemini Logic ---
+# -----------------------------
+# BERT SCORE
+# -----------------------------
+def bert_score(text):
     try:
-        # NEW PROMPT: Ask for a classification, not a score.
-        prompt = f"""
-        You are a sentiment analysis expert. Analyze the following product review.
-        Is the review's sentiment positive, negative, or neutral?
+        result = bert(text[:512])[0]
 
-        Review:
-        "{reviews_text}"
-
-        Respond ONLY with one single word: positive, negative, or neutral.
-        """
-        
-        response = gemini_model.generate_content(prompt)
-        
-        # Clean up the response
-        classification = response.text.strip().lower()
-
-        if "positive" in classification:
-            return "positive"
-        elif "negative" in classification:
-            return "negative"
+        if result['label'] == "POSITIVE":
+            return 50 + result['score'] * 50
         else:
-            return "neutral"
+            return 50 - result['score'] * 50
+    except:
+        return 50
 
-    except Exception as e:
-        # --- Fallback 2: If the Gemini API call fails ---
-        print(f"⚠️ Gemini sentiment API error: {e}. Falling back to VADER.")
-        return get_vader_classification(reviews_text)
+# -----------------------------
+# HYBRID SCORE
+# -----------------------------
+def get_review_score(text):
+    v = vader_score(text)
+    b = bert_score(text)
+
+    return round((0.4 * v) + (0.6 * b), 2)
+
+# -----------------------------
+# FINAL SENTIMENT (REAL-TIME)
+# -----------------------------
+def get_final_sentiment(base_score, user_review=None):
+    if user_review:
+        review_score = get_review_score(user_review)
+
+        # 🔥 Combine product reputation + user review
+        final_score = (0.7 * base_score) + (0.3 * review_score)
+    else:
+        final_score = base_score
+
+    return round(max(0, min(100, final_score)), 2)

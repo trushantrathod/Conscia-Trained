@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Conscia AI",
+  "version": "1.0",
+  "description": "Ethical product insights",
+  "permissions": [],
+  "host_permissions": [
+  "http://127.0.0.1:5000/*",
+  "http://localhost:5000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_width": 400,
+    "default_height": 600
+  }
+}

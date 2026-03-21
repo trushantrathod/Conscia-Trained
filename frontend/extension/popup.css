@@ -1,0 +1,145 @@
+/* Background */
+body {
+  width: 380px;
+  height: 600px;
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0f172a, #020617);
+  color: white;
+}
+
+/* Container */
+.container {
+  padding: 18px;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.header p {
+  margin: 5px 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Search */
+.search-box {
+  display: flex;
+  gap: 10px;
+}
+
+.search-box input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: #1e293b;
+  color: white;
+  outline: none;
+}
+
+.search-box button {
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.search-box button:hover {
+  transform: scale(1.05);
+}
+
+/* Result Box */
+.result {
+  margin-top: 20px;
+  background: rgba(17, 24, 39, 0.8);
+  padding: 15px;
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+}
+
+/* Score Section */
+.score-section {
+  margin-top: 10px;
+}
+
+.score-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+/* Progress bar */
+.progress {
+  height: 8px;
+  background: #374151;
+  border-radius: 10px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 10px;
+  transition: width 0.6s ease;
+}
+
+/* Score label */
+#scoreLabel {
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+/* Summary */
+.summary-box {
+  margin-top: 15px;
+}
+
+.summary-box h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #60a5fa;
+}
+
+.summary-box p {
+  font-size: 13px;
+  color: #cbd5f5;
+  margin-top: 5px;
+}
+
+/* Recommendation */
+.recommendation {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+/* Better options */
+.better-options {
+  margin-top: 12px;
+}
+
+.better-card {
+  background: #1e293b;
+  padding: 10px;
+  border-radius: 10px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+/* Hidden */
+.hidden {
+  display: none;
+}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Conscia</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <h1>Conscia</h1>
+      <p>AI Product Insight</p>
+    </div>
+
+    <!-- Input -->
+    <div class="search-box">
+      <input id="productInput" placeholder="Search product..." />
+      <button id="analyzeBtn">Analyze</button>
+    </div>
+
+    <!-- Result -->
+    <div id="resultBox" class="result hidden">
+
+      <h2 id="productName"></h2>
+
+      <!-- Score -->
+      <div class="score-section">
+        <div class="score-top">
+          <span>Sentiment</span>
+          <span id="scoreValue">0/100</span>
+        </div>
+
+        <div class="progress">
+          <div id="scoreBar" class="progress-fill"></div>
+        </div>
+
+        <p id="scoreLabel"></p>
+      </div>
+
+      <!-- Summary -->
+      <div class="summary-box">
+        <h3>AI Insight</h3>
+        <p id="summary"></p>
+      </div>
+
+      <!-- Recommendation -->
+      <div id="recommendation" class="recommendation"></div>
+
+      <!-- Better Options -->
+      <div id="betterOptions" class="better-options"></div>
+
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

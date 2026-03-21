@@ -37,6 +37,11 @@ export default function App() {
     const observer = useRef();
     const chatBodyRef = useRef(null);
     const API_URL = 'http://localhost:5000/api';
+    const getColor = (score) => {
+        if (score > 70) return "#22c55e"; // green
+        if (score > 40) return "#facc15"; // yellow
+        return "#ef4444"; // red
+    };
     
     // --- Theme Switching Effect ---
     useEffect(() => {
@@ -194,17 +199,42 @@ export default function App() {
     const handleChatSubmit = async (e) => {
         e.preventDefault();
         if (!chatInput.trim() || isChatLoading) return;
-        const newUserMessage = { role: 'user', parts: [{ text: chatInput }] };
+
+        const userMessage = chatInput;
+
+        const newUserMessage = { role: 'user', parts: [{ text: userMessage }] };
         const newHistory = [...chatHistory, newUserMessage];
-        setChatHistory(newHistory); setChatInput(''); setIsChatLoading(true);
+
+        setChatHistory(newHistory);
+        setChatInput('');
+        setIsChatLoading(true);
+
         try {
-            const response = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ history: newHistory }) });
+            const response = await fetch(`${API_URL}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: userMessage   // ✅ FIXED
+                })
+            });
+
             const data = await response.json();
-            const botMessage = { role: 'model', parts: [{ text: data.reply || "I'm sorry, I couldn't get a response." }] };
+
+            const botMessage = {
+                role: 'model',
+                parts: [{ text: data.reply || "No response" }]
+            };
+
             setChatHistory([...newHistory, botMessage]);
+
         } catch (e) {
             console.error("Chat API error:", e);
-            const errorMessage = { role: 'model', parts: [{ text: "I'm having trouble connecting. Please try again later." }] };
+
+            const errorMessage = {
+                role: 'model',
+                parts: [{ text: "⚠️ Backend error" }]
+            };
+
             setChatHistory([...newHistory, errorMessage]);
         } finally {
             setIsChatLoading(false);
@@ -273,7 +303,21 @@ export default function App() {
         if (explanation) {
             Object.entries(explanation).forEach(([category, catWords]) => {
                 if (Array.isArray(catWords)) {
-                    catWords.forEach(word => wordMap.set(word.toLowerCase(), colorMap[category]));
+                    catWords.forEach(item => {
+
+                        let word = "";
+
+                        if (typeof item === "string") {
+                            word = item;
+                        } else if (Array.isArray(item)) {
+                            word = item[0]; // extract word from ["word", weight]
+                        }
+
+                        if (word && typeof word === "string") {
+                            wordMap.set(word.toLowerCase(), colorMap[category]);
+                        }
+
+                    });
                 }
             });
         }
@@ -317,97 +361,110 @@ export default function App() {
         </div>
     ));
 
-    const renderModalContent = () => {
-        if (!selectedProduct) return null;
-        
-        const ethicalPillars = [
-            { label: 'Environmental', key: 'environmental impact', colorClass: 'bar-env' },
-            { label: 'Labor Rights', key: 'labor rights', colorClass: 'bar-labor' },
-            { label: 'Animal Welfare', key: 'animal welfare', colorClass: 'bar-animal' },
-            { label: 'Governance', key: 'corporate governance', colorClass: 'bar-gov' },
-        ];
+const renderModalContent = () => {
+    if (!selectedProduct) return null;
 
-        const sentimentScore = { label: 'Public Sentiment', key: 'public_sentiment_score', colorClass: 'bar-senti' };
+    return (
+        <>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem'}}>
+                <div>
+                    <h2 style={{fontSize: '1.875rem', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0}}>
+                        {selectedProduct.product_name}
+                    </h2>
+                    <p style={{fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-accent)', margin: '0.25rem 0 0 0'}}>
+                        ${selectedProduct.product_price ? parseFloat(selectedProduct.product_price).toFixed(2) : '0.00'}
+                    </p>
+                </div>
+                <button onClick={() => setSelectedProduct(null)} style={{background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem'}}>
+                    <CloseIcon style={{height: '1.5rem', width: '1.5rem', color: '#94a3b8'}} />
+                </button>
+            </div>
 
-        return (
-            <>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem'}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '2rem'}} id="modal-grid">
+
+                {/* ✅ UPDATED: ONLY SENTIMENT */}
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                    
                     <div>
-                        <h2 style={{fontSize: '1.875rem', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0}}>{selectedProduct.product_name}</h2>
-                        <p style={{fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-accent)', margin: '0.25rem 0 0 0'}}>${selectedProduct.product_price ? parseFloat(selectedProduct.product_price).toFixed(2) : '0.00'}</p>
-                    </div>
-                    <button onClick={() => setSelectedProduct(null)} style={{background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem'}}>
-                        <CloseIcon style={{height: '1.5rem', width: '1.5rem', color: '#94a3b8'}} />
-                    </button>
-                </div>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '2rem'}} id="modal-grid">
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                        {/* Ethical Pillars Section */}
+                        <h3 style={{
+                            fontSize: '1.25rem',
+                            fontWeight: 600,
+                            borderBottom: '1px solid var(--color-border)',
+                            paddingBottom: '0.5rem',
+                            margin: '0 0 1rem 0'
+                        }}>
+                            Public Sentiment Score
+                        </h3>
+
                         <div>
-                            <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin: '0 0 1rem 0'}}>Ethical Scores</h3>
-                            <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-                                {ethicalPillars.map(item => (
-                                    <div key={item.key}>
-                                        <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
-                                            <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{item.label}</span>
-                                            <span style={{fontWeight: 700, color: 'var(--color-text-primary)'}}>{(selectedProduct[item.key] || 0).toFixed(0)} / 100</span>
-                                        </div>
-                                        <div className="card-score-bar-bg">
-                                            <div className={`card-score-bar-fill ${item.colorClass}`} style={{ width: `${selectedProduct[item.key] || 0}%` }}></div>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                fontSize: '0.875rem',
+                                marginBottom: '0.25rem'
+                            }}>
+                                <span style={{fontWeight: 500}}>Sentiment</span>
+                                <span style={{fontWeight: 700}}>
+                                    {(selectedProduct.public_sentiment_score || 0).toFixed(0)} / 100
+                                </span>
                             </div>
-                        </div>
 
-                        {/* Public Sentiment Section */}
-                        <div style={{marginTop: '1.5rem'}}>
-                             <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin: '0 0 1rem 0'}}>Public Sentiment</h3>
-                             <div>
-                                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', marginBottom: '0.25rem'}}>
-                                    <span style={{fontWeight: 500, color: 'var(--color-text-primary)'}}>{sentimentScore.label}</span>
-                                    <span style={{fontWeight: 700, color: 'var(--color-text-primary)'}}>{(selectedProduct[sentimentScore.key] || 0).toFixed(0)} / 100</span>
-                                </div>
-                                <div className="card-score-bar-bg">
-                                    <div className={`card-score-bar-fill ${sentimentScore.colorClass}`} style={{ width: `${selectedProduct[sentimentScore.key] || 0}%` }}></div>
-                                </div>
+                            <div className="card-score-bar-bg">
+                                <div
+                                    className="card-score-bar-fill bar-senti"
+                                    style={{
+                                        width: `${selectedProduct.public_sentiment_score || 0}%`,
+                                        backgroundColor: getColor(selectedProduct.public_sentiment_score)
+                                        }}
+                                ></div>
                             </div>
-                        </div>
 
-                         <div style={{paddingTop: '1rem'}}>
-                            <button onClick={handleGetSummary} disabled={isSummaryLoading} className="review-submit-btn">
-                                {isSummaryLoading ? 'Generating...' : 'Get AI Ethical Snapshot'}
-                            </button>
-                            {summary && <div style={{marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--color-background-light)', borderRadius: '8px', color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6}}>{summary}</div>}
+                            {/* Label */}
+                            <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                                {selectedProduct.public_sentiment_score > 70
+                                    ? "😊 Positive"
+                                    : selectedProduct.public_sentiment_score > 40
+                                    ? "😐 Neutral"
+                                    : "😡 Negative"}
+                            </p>
                         </div>
                     </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                         <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin:0}}>Review Analysis (XAI)</h3>
-                         <div style={{padding: '1rem', backgroundColor: 'var(--color-input-bg)', borderRadius: '8px', maxHeight: '20rem', overflowY: 'auto'}}>
-                            {isModalLoading ? <div style={{display: 'flex', justifyContent: 'center'}}><LoadingSpinner /></div> : <HighlightedReview text={selectedProduct.reviews} explanation={explanation} />}
-                        </div>
-                        <p style={{fontSize: '0.75rem', color: 'var(--color-text-secondary)', textAlign: 'center', margin: 0}}>Words are highlighted based on their influence on the AI's scores.</p>
-                        
-                        <form onSubmit={handleReviewSubmit} style={{ paddingTop: '1rem' }}>
-                            <h3 className="review-form-title">Add Your Review ✍️</h3>
-                            <textarea
-                                className="review-textarea"
-                                value={newReview}
-                                onChange={(e) => setNewReview(e.target.value)}
-                                placeholder="Share your thoughts on this product..."
-                            />
-                            <button type="submit" disabled={isReviewSubmitting} className="review-submit-btn">
-                                {isReviewSubmitting ? 'Submitting...' : 'Submit Review & Update Scores'}
-                            </button>
-                        </form>
+
+                    {/* KEEP THIS SAME */}
+                    <div style={{paddingTop: '1rem'}}>
+                        <button onClick={handleGetSummary} disabled={isSummaryLoading} className="review-submit-btn">
+                            {isSummaryLoading ? 'Generating...' : 'Get AI Ethical Snapshot'}
+                        </button>
+                        {summary && <div style={{marginTop: '1rem', padding: '1rem', backgroundColor: 'var(--color-background-light)', borderRadius: '8px', color: 'var(--color-text-secondary)', fontSize: '0.875rem', lineHeight: 1.6}}>{summary}</div>}
                     </div>
                 </div>
-                <style>
-                  {`@media (min-width: 1024px) { #modal-grid { grid-template-columns: repeat(2, 1fr); }}`}
-                </style>
-            </>
-        )
-    };
+
+                {/* RIGHT SIDE SAME */}
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                    <h3 style={{fontSize: '1.25rem', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '0.5rem', margin:0}}>
+                        Review Analysis (XAI)
+                    </h3>
+
+                    <div style={{padding: '1rem', backgroundColor: 'var(--color-input-bg)', borderRadius: '8px', maxHeight: '20rem', overflowY: 'auto'}}>
+                        {isModalLoading ? <LoadingSpinner /> : <HighlightedReview text={selectedProduct.reviews} explanation={explanation} />}
+                    </div>
+
+                    <form onSubmit={handleReviewSubmit} style={{ paddingTop: '1rem' }}>
+                        <h3 className="review-form-title">Add Your Review ✍️</h3>
+                        <textarea
+                            className="review-textarea"
+                            value={newReview}
+                            onChange={(e) => setNewReview(e.target.value)}
+                        />
+                        <button type="submit" disabled={isReviewSubmitting} className="review-submit-btn">
+                            {isReviewSubmitting ? 'Submitting...' : 'Submit Review'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </>
+    )
+}
     
     const renderChatWindow = () => (
         <div className="chat-window glass-effect">
@@ -514,34 +571,23 @@ export default function App() {
                                                         </p>
                                                     </div>
                                                     <div className="card-scores-container">
-                                                        <div className="card-score-bar-wrapper">
-                                                            <span className="card-score-label">Environment</span>
-                                                            <div className="card-score-bar-bg">
-                                                                <div className="card-score-bar-fill bar-env" style={{ width: `${product['environmental impact'] || 0}%` }}/>
-                                                            </div>
-                                                            <span className="card-score-value">{Math.round(product['environmental impact'] || 0)}</span>
+                                                    <div className="card-score-bar-wrapper">
+                                                        <span className="card-score-label">Sentiment</span>
+                                                        
+                                                        <div className="card-score-bar-bg">
+                                                        <div 
+                                                            className="card-score-bar-fill bar-senti" 
+                                                            style={{
+                                                                width: `${product['public_sentiment_score'] || 0}%`,
+                                                                backgroundColor: getColor(product['public_sentiment_score'])
+                                                                }}
+                                                        />
                                                         </div>
-                                                        <div className="card-score-bar-wrapper">
-                                                            <span className="card-score-label">Labor</span>
-                                                            <div className="card-score-bar-bg">
-                                                                <div className="card-score-bar-fill bar-labor" style={{ width: `${product['labor rights'] || 0}%` }}/>
-                                                            </div>
-                                                            <span className="card-score-value">{Math.round(product['labor rights'] || 0)}</span>
-                                                        </div>
-                                                        <div className="card-score-bar-wrapper">
-                                                            <span className="card-score-label">Animal Welfare</span>
-                                                            <div className="card-score-bar-bg">
-                                                                <div className="card-score-bar-fill bar-animal" style={{ width: `${product['animal welfare'] || 0}%` }}/>
-                                                            </div>
-                                                            <span className="card-score-value">{Math.round(product['animal welfare'] || 0)}</span>
-                                                        </div>
-                                                        <div className="card-score-bar-wrapper">
-                                                            <span className="card-score-label">Governance</span>
-                                                            <div className="card-score-bar-bg">
-                                                                <div className="card-score-bar-fill bar-gov" style={{ width: `${product['corporate governance'] || 0}%` }}/>
-                                                            </div>
-                                                            <span className="card-score-value">{Math.round(product['corporate governance'] || 0)}</span>
-                                                        </div>
+
+                                                        <span className="card-score-value">
+                                                        {Math.round(product['public_sentiment_score'] || 0)}
+                                                        </span>
+                                                    </div>
                                                     </div>
                                                 </div>
                                             ))}
