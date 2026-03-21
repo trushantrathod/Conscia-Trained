@@ -13,7 +13,7 @@ import google.generativeai as genai
 from lime.lime_text import LimeTextExplainer
 
 # --- CONFIG ---
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDUJMgDO6EAVJ5QC-2BeB6xuM2qHrJgMAU")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 app = Flask(__name__)
 CORS(app)
