@@ -139,19 +139,26 @@ export default function App() {
 
     const handleGetSummary = async () => {
         if (!selectedProduct) return;
-        const scores = {
-            'environmental impact': selectedProduct['environmental impact'],
-            'labor rights': selectedProduct['labor rights'],
-            'animal welfare': selectedProduct['animal welfare'],
-            'corporate governance': selectedProduct['corporate governance']
-        };
-        setIsSummaryLoading(true); setSummary('');
+
+        setIsSummaryLoading(true);
+        setSummary('');
+
         try {
-            const response = await fetch(`${API_URL}/snapshot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_name: selectedProduct.product_name, scores }) });
+            const response = await fetch(`${API_URL}/snapshot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product: selectedProduct.product_name   // ✅ FIXED KEY
+                })
+            });
+
             const data = await response.json();
-            setSummary(data.summary);
+
+            setSummary(data.snapshot);
+
         } catch (e) {
-            console.error("Failed to get summary:", e); setSummary('Could not generate summary at this time.');
+            console.error("Failed to get summary:", e);
+            setSummary('Could not generate summary at this time.');
         } finally {
             setIsSummaryLoading(false);
         }
