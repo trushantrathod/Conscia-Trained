@@ -1,6 +1,6 @@
-# Conscia-Trained: AI-Powered Smart Productivity Companion
+# Conscia: An AI-Powered Ethical Shopping Companion
 
-Conscia-Trained is a full-stack application designed to enhance
+Conscia is a full-stack application designed to enhance
 productivity through intelligent automation and seamless browser
 integration. It combines a custom AI-powered backend with a Chrome
 Extension interface for real-time interactions.
