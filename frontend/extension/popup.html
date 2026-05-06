@@ -1,60 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Conscia</title>
-  <link rel="stylesheet" href="popup.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Conscia Extension</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="popup.css" />
 </head>
-
 <body>
-  <div class="container">
-
+  <div class="app-container">
+    
     <!-- Header -->
-    <div class="header">
-      <h1>Conscia</h1>
-      <p>AI Product Insight</p>
+    <header class="header">
+      <div class="brand">Conscia.</div>
+      <div class="status-indicator" id="statusIndicator" title="Server Status"></div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-target="insight-view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Insight
+      </button>
+      <button class="tab-btn" data-target="chat-view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        AI Chat
+      </button>
     </div>
 
-    <!-- Input -->
-    <div class="search-box">
-      <input id="productInput" placeholder="Search product..." />
-      <button id="analyzeBtn">Analyze</button>
-    </div>
+    <!-- MAIN CONTENT AREA -->
+    <div class="content-area">
 
-    <!-- Result -->
-    <div id="resultBox" class="result hidden">
-
-      <h2 id="productName"></h2>
-
-      <!-- Score -->
-      <div class="score-section">
-        <div class="score-top">
-          <span>Sentiment</span>
-          <span id="scoreValue">0/100</span>
+      <!-- ================= INSIGHT VIEW ================= -->
+      <div id="insight-view" class="view active">
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Search a product name..." />
+          <button id="searchBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
         </div>
 
-        <div class="progress">
-          <div id="scoreBar" class="progress-fill"></div>
+        <div id="loadingState" class="state-box hidden">
+          <div class="spinner"></div>
+          <p>Analyzing product...</p>
         </div>
 
-        <p id="scoreLabel"></p>
+        <div id="errorState" class="state-box hidden">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f05c5c" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p id="errorMsg">Product not found.</p>
+        </div>
+
+        <div id="initialState" class="state-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5"><path d="M2 12h4l3-9 5 18 3-9h5"/></svg>
+          <p>Search a product to view its ethical scores, AI snapshot, and alternatives.</p>
+        </div>
+
+        <div id="productData" class="product-data hidden">
+          <div class="prod-header">
+            <div class="prod-meta">
+              <span id="pCategory" class="cat-tag">Category</span>
+              <span id="pPrice" class="price-tag">₹0</span>
+            </div>
+            <h2 id="pName">Product Name</h2>
+            <div id="pReco" class="reco-badge">✅ Should Buy</div>
+          </div>
+
+          <div class="score-card">
+            <span>Public Sentiment</span>
+            <h1 id="pSentiment">0</h1>
+          </div>
+
+          <div class="ethical-breakdown">
+            <h4>Ethical Breakdown</h4>
+            <div id="ethicalList"></div>
+          </div>
+
+          <div class="ai-snapshot">
+            <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg> AI Snapshot</h4>
+            <p id="pSnapshot">Loading AI summary...</p>
+          </div>
+
+          <div class="alt-section">
+            <h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> Better Alternatives</h4>
+            <div id="altList" class="alt-list"></div>
+          </div>
+        </div>
       </div>
 
-      <!-- Summary -->
-      <div class="summary-box">
-        <h3>AI Insight</h3>
-        <p id="summary"></p>
+      <!-- ================= CHAT VIEW ================= -->
+      <div id="chat-view" class="view">
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-msg bot">Hi there! I am Conscia, your smart ethical shopping assistant. Ask me for recommendations or product scores!</div>
+        </div>
+        <form class="chat-input-area" id="chatForm">
+          <input type="text" id="chatInput" placeholder="Ask Conscia..." autocomplete="off"/>
+          <button type="submit" id="chatSendBtn" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </form>
       </div>
-
-      <!-- Recommendation -->
-      <div id="recommendation" class="recommendation"></div>
-
-      <!-- Better Options -->
-      <div id="betterOptions" class="better-options"></div>
 
     </div>
-
   </div>
-
   <script src="popup.js"></script>
 </body>
 </html>

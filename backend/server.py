@@ -5,26 +5,33 @@ import pickle
 import numpy as np
 import tensorflow as tf
 import os
-import json
 from sentiment_analyzer import get_final_sentiment
-
-# --- Gemini (optional) ---
 import google.generativeai as genai
 from lime.lime_text import LimeTextExplainer
 
 # --- CONFIG ---
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDUJMgDO6EAVJ5QC-2BeB6xuM2qHrJgMAU")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBvo6p9LBruiBYDOFygIbDlw0RXe147xB4")
 
 app = Flask(__name__)
 CORS(app)
 
 # --- GLOBALS ---
 products_df = None
-vectorizer = None
-scaler = None
-model = None
+vectorizer  = None
+scaler      = None
+model       = None
 gemini_model = None
-explainer = None
+explainer   = None
+
+# Column name mapping: CSV space-names → API underscore-names
+COL_RENAME = {
+    'environmental impact': 'environmental_impact',
+    'labor rights':         'labor_rights',
+    'animal welfare':       'animal_welfare',
+    'corporate governance': 'corporate_governance',
+}
+
+ETHICAL_LABELS = ['environmental_impact', 'labor_rights', 'animal_welfare', 'corporate_governance']
 
 
 # ==============================
@@ -36,8 +43,23 @@ def load_resources():
     base = os.path.dirname(os.path.abspath(__file__))
 
     try:
-        products_df = pd.read_csv(os.path.join(base, "data", "products_with_scores.csv"))
-        print("✅ Products loaded")
+        df = pd.read_csv(os.path.join(base, "data", "products_with_scores.csv"))
+        df.rename(columns=COL_RENAME, inplace=True)
+        
+        # Explicitly cast to 'float64' to prevent pandas.errors.LossySetitemError
+        for col in ETHICAL_LABELS:
+            if col not in df.columns:
+                df[col] = 50.0
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(50.0).astype('float64')
+            
+        if 'public_sentiment_score' not in df.columns:
+            df['public_sentiment_score'] = 50.0
+        df['public_sentiment_score'] = pd.to_numeric(
+            df['public_sentiment_score'], errors='coerce'
+        ).fillna(50.0).astype('float64')
+        
+        products_df = df
+        print(f"✅ Products loaded: {len(products_df)} rows")
     except Exception as e:
         print("❌ Error loading dataset:", e)
         return False
@@ -45,48 +67,42 @@ def load_resources():
     try:
         with open(os.path.join(base, "tfidf_vectorizer.pkl"), "rb") as f:
             vectorizer = pickle.load(f)
-
         with open(os.path.join(base, "score_scaler.pkl"), "rb") as f:
             scaler = pickle.load(f)
-
         model = tf.keras.models.load_model(os.path.join(base, "ethical_model.keras"))
-
-        print("✅ Model loaded")
+        print("✅ Models loaded successfully")
     except Exception as e:
-        print("⚠ Model not loaded:", e)
+        print("⚠ ML Model not loaded (will use default/CSV scores):", e)
 
-    # Gemini
+    # Gemini Setup
     try:
         if GEMINI_API_KEY:
             genai.configure(api_key=GEMINI_API_KEY)
-            gemini_model = genai.GenerativeModel("gemini-flash-latest")
+            gemini_model = genai.GenerativeModel("gemini-2.5-flash")
             print("✅ Gemini ready")
-    except:
+    except Exception as e:
+        print("⚠ Gemini initialization failed:", e)
         gemini_model = None
 
-    # LIME
-    explainer = LimeTextExplainer(class_names=[
-        'environmental impact',
-        'labor rights',
-        'animal welfare',
-        'corporate governance'
-    ])
-
+    explainer = LimeTextExplainer(class_names=ETHICAL_LABELS)
     return True
 
 
 # ==============================
-# MODEL PREDICTION
+# FAST ML PREDICTION
 # ==============================
 def predict_ethical_scores(text):
     if not all([model, vectorizer, scaler]):
-        return [50, 50, 50, 50]
+        return {label: 50.0 for label in ETHICAL_LABELS}
 
-    vec = vectorizer.transform([str(text)]).toarray()
-    pred = model.predict(vec)
-    scores = scaler.inverse_transform(pred)
+    vec  = vectorizer.transform([str(text)]).toarray()
+    pred = model.predict(vec, verbose=0)
+    scores = scaler.inverse_transform(pred)[0]
 
-    return [round(np.clip(s, 0, 100), 2) for s in scores[0]]
+    return {
+        label: round(float(np.clip(score, 0, 100)), 2)
+        for label, score in zip(ETHICAL_LABELS, scores)
+    }
 
 
 # ==============================
@@ -95,12 +111,29 @@ def predict_ethical_scores(text):
 
 @app.route("/api/products", methods=["GET"])
 def get_products():
-    return jsonify(products_df.to_dict(orient="records"))
+    limit  = int(request.args.get("limit",  48))
+    offset = int(request.args.get("offset",  0))
+    category = request.args.get("category", "All")
+
+    if category and category != "All":
+        filtered_df = products_df[products_df['category'].str.lower() == category.lower()]
+    else:
+        filtered_df = products_df
+
+    subset = filtered_df.iloc[offset: offset + limit]
+    records = subset.to_dict(orient="records")
+
+    for record in records:
+        for col in ETHICAL_LABELS:
+            val = record.get(col)
+            record[col] = 50.0 if pd.isna(val) else round(float(val), 2)
+            
+        sentiment = record.get('public_sentiment_score', 50.0)
+        record['public_sentiment_score'] = 50.0 if pd.isna(sentiment) else round(float(sentiment), 2)
+
+    return jsonify(records)
 
 
-# ==============================
-# 🔥 UPDATED REVIEW API
-# ==============================
 @app.route("/api/products/<product_id>/reviews", methods=["POST"])
 def add_review(product_id):
     global products_df
@@ -112,171 +145,94 @@ def add_review(product_id):
         return jsonify({"error": "No review provided"}), 400
 
     product_index = products_df[products_df["product_id"] == product_id].index
-
     if product_index.empty:
         return jsonify({"error": "Product not found"}), 404
 
     idx = product_index[0]
 
-    # 1️⃣ Append review
+    # 1. Append review
     current_reviews = products_df.at[idx, "reviews"]
-
     if pd.notna(current_reviews) and str(current_reviews).strip():
         updated_reviews = f"{current_reviews} | {new_review}"
     else:
         updated_reviews = new_review
-
     products_df.at[idx, "reviews"] = updated_reviews
 
-
-# 2️⃣ 🔥 FIXED SENTIMENT UPDATE
+    # 2. Update sentiment score
     base_score = float(products_df.at[idx, "public_sentiment_score"])
+    new_sentiment_score = get_final_sentiment(base_score, new_review)
+    products_df.at[idx, "public_sentiment_score"] = float(new_sentiment_score)
 
-    new_score = get_final_sentiment(base_score, new_review)
+    # 3. PREVENT SCORE RESET: Predict impact of the NEW review only
+    new_review_scores = predict_ethical_scores(new_review)
+    
+    # Apply a Weighted Moving Average (90% Historical Score, 10% New Review Impact)
+    for label, predicted_val in new_review_scores.items():
+        old_val = float(products_df.at[idx, label])
+        # Nudge the score gently based on the new review rather than overwriting it
+        blended_score = (old_val * 0.90) + (float(predicted_val) * 0.10)
+        products_df.at[idx, label] = round(blended_score, 2)
 
-    products_df.at[idx, "public_sentiment_score"] = new_score
-
-    # 3️⃣ Save back
+    # 4. Save to CSV
     data_path = os.path.join(os.path.dirname(__file__), "data", "products_with_scores.csv")
-    products_df.to_csv(data_path, index=False)
+    save_df = products_df.rename(columns={v: k for k, v in COL_RENAME.items()})
+    save_df.to_csv(data_path, index=False)
 
-    print(f"✅ Updated sentiment for {product_id} → {new_score}")
+    # 5. Return updated data
+    response_data = products_df.iloc[idx].to_dict()
+    # Ensure the returned dict uses the freshly blended scores
+    for label in ETHICAL_LABELS:
+        response_data[label] = products_df.at[idx, label]
 
-    return jsonify(products_df.iloc[idx].to_dict())
+    return jsonify(response_data)
 
 
-# ==============================
-# OPTIONAL: EXPLAIN MODEL
-# ==============================
 @app.route("/api/explain", methods=["POST"])
 def explain():
     data = request.get_json()
     text = data.get("reviews", "")
 
-    def predict(texts):
-        vec = vectorizer.transform(texts).toarray()
-        return model.predict(vec)
-
-    exp = explainer.explain_instance(text, predict, num_features=5)
-
-    return jsonify(exp.as_list())
-
-
-@app.route('/api/chat', methods=['POST', 'OPTIONS'])
-def chat():
-    if request.method == 'OPTIONS':
-        return '', 200
-
-    data = request.get_json()
-    message = str(data.get("message", "")).strip().lower()
-
-    if not message:
-        return jsonify({
-            "reply": "Hey! I'm Conscia 🤖 — ask me about products, recommendations, or reviews."
-        })
-
-    # ==============================
-    # 🔍 CATEGORY DETECTION (AFTER message)
-    # ==============================
-    category = None
-
-    if "beauty" in message:
-        category = "beauty"
-    elif "electronics" in message:
-        category = "electronics"
-    elif "grocery" in message:
-        category = "grocery"
-    elif "fashion" in message:
-        category = "fashion"
+    if not text:
+        return jsonify([])
 
     try:
-        # ==============================
-        # 🔥 FILTER PRODUCTS BY CATEGORY
-        # ==============================
-        if category:
-            filtered = products_df[
-                products_df['category'].str.lower().str.contains(category)
-            ]
-        else:
-            filtered = products_df
-
-        # If empty fallback
-        if filtered.empty:
-            filtered = products_df
-
-        # ==============================
-        # 🔥 GET TOP PRODUCTS
-        # ==============================
-        top_products = filtered.sort_values(
-            by='public_sentiment_score',
-            ascending=False
-        ).head(5)
-
-        product_context = "\n".join([
-            f"{row['product_name']} (Score: {round(row['public_sentiment_score'],2)}, Price: {row['product_price']})"
-            for _, row in top_products.iterrows()
-        ])
-
-        # ==============================
-        # 🔍 MATCH SPECIFIC PRODUCT
-        # ==============================
-        matched_product = None
-
-        for _, row in products_df.iterrows():
-            name = str(row['product_name']).lower()
-            if name in message:
-                matched_product = row
-                break
-
-        product_info = ""
-
-        if matched_product is not None:
-            product_info = f"""
-            Product: {matched_product['product_name']}
-            Score: {round(matched_product['public_sentiment_score'],2)}
-            Price: {matched_product['product_price']}
-            """
-
-        # ==============================
-        # 🤖 GEMINI PROMPT
-        # ==============================
-        prompt = f"""
-        You are Conscia AI, a product recommendation assistant.
-
-        User question:
-        {message}
-
-        Relevant product:
-        {product_info}
-
-        Available products:
-        {product_context}
-
-        Instructions:
-        - If a product is mentioned, ALWAYS answer about it
-        - Tell if it is good or bad based on score
-        - Score > 70 → good
-        - Score 40–70 → average
-        - Score < 40 → not recommended
-        - Be clear and direct
-        """
-
         if gemini_model:
+            prompt = f"""
+            Analyze the following product reviews and identify the top 5 key phrases (1-3 words max) that drive the consumer sentiment. 
+            For each phrase, assign a sentiment weight:
+            - Negative traits (red flags like 'oily', 'sticky', 'broken', 'cheap material') MUST have a negative float between -0.1 and -0.9.
+            - Positive traits (like 'smooth', 'durable', 'fresh', 'good quality') MUST have a positive float between 0.1 and 0.9.
+            
+            Reviews:
+            {text}
+
+            You MUST respond with ONLY a valid JSON array of arrays. Do not include any markdown, backticks, or other text.
+            Example format:
+            [["smooth texture", 0.45], ["sticky", -0.50], ["pleasant fragrance", 0.25], ["oily", -0.40]]
+            """
             response = gemini_model.generate_content(prompt)
-            reply = response.text.strip()
+            
+            response_text = response.text.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+                
+            import json
+            explanation = json.loads(response_text.strip())
+            return jsonify(explanation)
         else:
-            reply = "AI not available"
-
+            return jsonify([["AI Offline", 0.0]])
+            
     except Exception as e:
-        print("Chat error:", e)
-        reply = "Error generating response"
+        print("XAI Gemini error:", e)
+        return jsonify([["Context Analysis Error", 0.0]])
 
-    return jsonify({"reply": reply})
 
-summary_cache = {}  # 🔥 cache for fast response
-
-@app.route('/api/product-analysis', methods=['POST', 'OPTIONS'])
-def analyze_product():
+@app.route('/api/snapshot', methods=['POST', 'OPTIONS'])
+def snapshot():
     if request.method == 'OPTIONS':
         return '', 200
 
@@ -286,103 +242,137 @@ def analyze_product():
     if not product_name:
         return jsonify({"error": "No product provided"}), 400
 
-    # 🔍 SMART SEARCH
     product_df = products_df[
-        products_df['product_name'].str.lower().str.contains(product_name)
+        products_df['product_name'].str.lower().str.contains(product_name, na=False)
     ]
 
     if product_df.empty:
         return jsonify({"error": "Product not found"}), 404
 
     product = product_df.iloc[0]
+    ethical = {label: float(product.get(label, 50.0)) for label in ETHICAL_LABELS}
 
-    # ==============================
-    # 🔥 REAL-TIME SENTIMENT
-    # ==============================
-    base_score = float(product.get("public_sentiment_score", 50))
-    user_review = data.get("review", None)
-
-    sentiment_score = get_final_sentiment(base_score, user_review)
-
-    # ==============================
-    # 🧠 RECOMMENDATION
-    # ==============================
-    if sentiment_score >= 75:
-        recommendation = "✅ Recommended"
-    elif sentiment_score >= 55:
-        recommendation = "👍 Good choice"
-    elif sentiment_score >= 40:
-        recommendation = "⚠️ Consider"
-    else:
-        recommendation = "❌ Not recommended"
-
-    # ==============================
-    # 🤖 GEMINI SUMMARY (CACHED)
-    # ==============================
     try:
-        product_key = product['product_name']
-
-        if product_key in summary_cache:
-            summary = summary_cache[product_key]
+        if gemini_model:
+            ethical_str = "\n".join([f"- {k.replace('_', ' ').title()}: {v}/100" for k, v in ethical.items()])
+            prompt = f"""
+            Give a concise ethical snapshot of this product for a conscious consumer.
+            Product: {product['product_name']}
+            Sentiment Score: {product['public_sentiment_score']}/100
+            Ethical Scores:
+            {ethical_str}
+            
+            Keep it strictly to 2 short sentences. Highlight the best ethical dimension and one area of concern.
+            """
+            response = gemini_model.generate_content(prompt)
+            summary  = response.text.strip()
         else:
-            if gemini_model:
-                prompt = f"""
-                Give a short 2-3 line product review summary.
-
-                Product: {product['product_name']}
-                Sentiment Score: {sentiment_score}/100
-
-                Keep it simple and natural.
-                """
-
-                response = gemini_model.generate_content(prompt)
-                summary = response.text.strip()
-            else:
-                summary = "Summary not available."
-
-            summary_cache[product_key] = summary
-
+            summary = "AI model not available."
     except Exception as e:
-        print("Gemini error:", e)
-        summary = "Could not generate summary."
+        print("Snapshot error:", e)
+        summary = "Could not generate summary at this time."
 
-    # ==============================
-    # 💸 BETTER PRODUCTS
-    # ==============================
-    same_category = products_df[
-        products_df['category'] == product['category']
-    ]
-
-    better_products = same_category[
-        (same_category['public_sentiment_score'] > sentiment_score) &
-        (same_category['product_price'] <= product['product_price'])
-    ]
-
-    better_products = better_products.sort_values(
-        by=['public_sentiment_score', 'product_price'],
-        ascending=[False, True]
-    ).head(3)
-
-    better_list = better_products[
-        ['product_name', 'product_price', 'public_sentiment_score']
-    ].to_dict(orient='records')
-
-    # ==============================
-    # ✅ FINAL RESPONSE
-    # ==============================
     return jsonify({
-        "product_name": product['product_name'],
-        "sentiment_score": round(sentiment_score, 2),
-        "summary": summary,
-        "recommendation": recommendation,
-        "better_options": better_list
+        "product":        product['product_name'],
+        "snapshot":       summary,
+        "ethical_scores": ethical
     })
 
-if __name__ == "__main__":
-    print("🔥 Starting server...")
 
+@app.route('/api/chat', methods=['POST', 'OPTIONS'])
+def chat():
+    if request.method == 'OPTIONS':
+        return '', 200
+
+    data    = request.get_json()
+    message = str(data.get("message", "")).strip()
+
+    if not message:
+        return jsonify({"reply": "Hey! I'm Conscia 🤖 — ask me about products, recommendations, or ethical scores."})
+
+    try:
+        if gemini_model and products_df is not None:
+            msg_lower = message.lower()
+            filtered_df = products_df.copy()
+
+            cat_map = {
+                'beauty': 'Beauty', 
+                'electronic': 'Electronics', 'electronics': 'Electronics',
+                'fashion': 'Fashion', 
+                'grocery': 'Groceries', 'groceries': 'Groceries'
+            }
+            
+            matched_cat = None
+            for keyword, actual_cat in cat_map.items():
+                if keyword in msg_lower:
+                    matched_cat = actual_cat
+                    break
+
+            matched_product_names = []
+            for p_name in products_df['product_name'].unique():
+                if str(p_name).lower() in msg_lower:
+                    matched_product_names.append(p_name)
+
+            if matched_product_names:
+                filtered_df = filtered_df[filtered_df['product_name'].isin(matched_product_names)]
+            elif matched_cat:
+                filtered_df = filtered_df[filtered_df['category'] == matched_cat]
+
+            if any(word in msg_lower for word in ["best", "top", "recommend", "good", "highest"]):
+                filtered_df = filtered_df.sort_values(by='public_sentiment_score', ascending=False)
+            elif any(word in msg_lower for word in ["worst", "bad", "low", "lowest"]):
+                filtered_df = filtered_df.sort_values(by='public_sentiment_score', ascending=True)
+
+            top_results = filtered_df.head(10)
+            context_str = "DATABASE RESULTS:\n"
+
+            if not top_results.empty:
+                for _, row in top_results.iterrows():
+                    avg_eth = (row['environmental_impact'] + row['labor_rights'] + row['animal_welfare'] + row['corporate_governance']) / 4
+                    reviews_str = str(row['reviews'])
+                    reviews_preview = reviews_str[:400] + "..." if len(reviews_str) > 400 else reviews_str
+                    
+                    context_str += (
+                        f"Product: {row['product_name']} | Category: {row['category']} | Price: ₹{row['product_price']}\n"
+                        f"Sentiment: {row['public_sentiment_score']}/100 | Avg Ethical: {avg_eth:.1f}/100\n"
+                        f"Reviews: {reviews_preview}\n\n"
+                    )
+            else:
+                context_str = "No specific products found matching the query."
+
+            prompt = f"""
+            You are Conscia AI, an expert ethical shopping assistant.
+            You have been provided with internal database records below.
+            
+            {context_str}
+
+            User Query: "{message}"
+
+            STRICT INSTRUCTIONS:
+            1. Answer the user's query DIRECTLY using ONLY the database results provided above.
+            2. NEVER tell the user to "search", "click", or "browse". YOU must provide the answer directly in the chat.
+            3. If they ask for recommendations (e.g., "top 10 beauty products"), list the products from the context with their sentiment scores and prices.
+            4. If they ask WHY a product has a low/high score, read the "Reviews" text in the context and summarize the specific complaints or praises mentioned by real users. Be specific.
+            5. Do NOT invent or hallucinate products.
+            6. Do NOT use Markdown formatting like asterisks (** or *) for bolding or bullet points. Output plain text only.
+            """
+
+            response = gemini_model.generate_content(prompt)
+            reply = response.text.strip().replace('*', '')
+        else:
+            reply = "AI chat is offline or database is not loaded. Please check your API configuration."
+
+    except Exception as e:
+        print("Chat error:", e)
+        reply = "Error generating response from AI. Please try again."
+
+    return jsonify({"reply": reply})
+
+
+if __name__ == "__main__":
+    print("🔥 Starting Conscia Server...")
     if load_resources():
-        print("✅ Resources loaded")
-        app.run(debug=True)
+        print("✅ Server Ready. Running on port 5000.")
+        app.run(debug=True, port=5000)
     else:
-        print("❌ Failed to load resources")
+        print("❌ Failed to start: Resources missing.")
